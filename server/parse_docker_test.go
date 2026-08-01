@@ -59,16 +59,14 @@ edicts  : 416 used of 2048 max
 
 func TestRefreshFillsConfiguredAddress(t *testing.T) {
 	s := NewServer("127.0.0.1:27015", "test")
-	/* Simulate a parsed status with unusable addresses. */
+	// Simulate a parsed status with unusable addresses.
 	s.lastInfo = ServerInfo{
 		Address:  Address{SDR: "?.?.?.?:?"},
 		SourceTV: SourceTV{Address: "?.?.?.?:?", Local: "0.0.0.0:27020"},
 	}
 
-	/*
-		We can't call Refresh without a real server, but we can verify the
-		helpers behave correctly with ConfiguredAddress set manually.
-	*/
+	// We can't call Refresh without a real server, but we can verify the
+	// helpers behave correctly with ConfiguredAddress set manually.
 	s.lastInfo.ConfiguredAddress = s.address
 
 	if got := s.lastInfo.GameConnectAddress(); got != "127.0.0.1:27015" {

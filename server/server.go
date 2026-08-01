@@ -49,15 +49,12 @@ type ServerInfo struct {
 	Players           []Player
 }
 
-/*
-GameConnectAddress returns the best address to give to TF2 clients that want
-to connect to the game server.
-
-The SourceTV/SDR address reported by status is
-preferred because it is the server's own view of its public endpoint
-
-Fallbacks are only used when the server reports a placeholder such as ?.?.?.?:?.
-*/
+// GameConnectAddress returns the best address to give to TF2 clients that want
+// to connect to the game server.
+//
+// The SourceTV/SDR address reported by status is preferred because it is the
+// server's own view of its public endpoint. Fallbacks are only used when the
+// server reports a placeholder such as ?.?.?.?:?.
 func (i ServerInfo) GameConnectAddress() string {
 	if addressIsUsable(i.Address.SDR) {
 		return i.Address.SDR
@@ -71,13 +68,10 @@ func (i ServerInfo) GameConnectAddress() string {
 	return ""
 }
 
-/*
-STVConnectAddress returns the best SourceTV connect address.
-
-The server's reported STV address is preferred.
-
-If it is unavailable we derive one from the configured game host and the STV port reported by status.
-*/
+// STVConnectAddress returns the best SourceTV connect address.
+//
+// The server's reported STV address is preferred. If it is unavailable we
+// derive one from the configured game host and the STV port reported by status.
 func (i ServerInfo) STVConnectAddress() string {
 	if addressIsUsable(i.SourceTV.Address) {
 		return i.SourceTV.Address
