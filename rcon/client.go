@@ -54,13 +54,13 @@ type ServerInfo struct {
 // The reported UDP/IP address from status is preferred. Fallbacks are only
 // used when the server reports a placeholder such as ?.?.?.?:?.
 func (i ServerInfo) GameConnectAddress() string {
-	if AddressIsUsable(i.Address.IP) {
+	if AddressIsValid(i.Address.IP) {
 		return i.Address.IP
 	}
-	if AddressIsUsable(i.Address.Local) {
+	if AddressIsValid(i.Address.Local) {
 		return i.Address.Local
 	}
-	if AddressIsUsable(i.ConfiguredAddress) {
+	if AddressIsValid(i.ConfiguredAddress) {
 		return i.ConfiguredAddress
 	}
 	return ""
@@ -71,13 +71,13 @@ func (i ServerInfo) GameConnectAddress() string {
 // The server's reported STV address is preferred. If it is unavailable we
 // derive one from the configured game host and the STV port reported by status.
 func (i ServerInfo) STVConnectAddress() string {
-	if AddressIsUsable(i.SourceTV.Address) {
+	if AddressIsValid(i.SourceTV.Address) {
 		return i.SourceTV.Address
 	}
-	if AddressIsUsable(i.SourceTV.Local) {
+	if AddressIsValid(i.SourceTV.Local) {
 		return i.SourceTV.Local
 	}
-	if !AddressIsUsable(i.ConfiguredAddress) {
+	if !AddressIsValid(i.ConfiguredAddress) {
 		return ""
 	}
 	host, _, err := net.SplitHostPort(i.ConfiguredAddress)
@@ -214,7 +214,7 @@ func (s *Client) Refresh() error {
 	info.ConfiguredAddress = s.address
 
 	// Fall back to the configured address if the server did not report a usable one.
-	if !AddressIsUsable(info.Address.IP) {
+	if !AddressIsValid(info.Address.IP) {
 		info.Address.IP = s.address
 	}
 	if info.Address.Local == "" {
@@ -301,9 +301,9 @@ func stripQuotes(s string) string {
 	return s
 }
 
-// AddressIsUsable reports whether an address string is a real endpoint and not
-// an empty or unknown placeholder like "?.?.?.?:?" or "0.0.0.0:27015".
-func AddressIsUsable(s string) bool {
+// AddressIsValid reports whether an address string is a real endpoint and not
+// an empty or unknown placeholder like "?.?.?.?:?".
+func AddressIsValid(s string) bool {
 	if s == "" {
 		return false
 	}
@@ -311,7 +311,7 @@ func AddressIsUsable(s string) bool {
 	if err != nil {
 		host = s
 	}
-	return host != "0.0.0.0" && !strings.Contains(host, "?")
+	return !strings.Contains(host, "?")
 }
 
 func parsePlayersLine(line string) (humans, max int) {
