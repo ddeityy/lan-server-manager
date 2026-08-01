@@ -9,18 +9,14 @@ import (
 func (p *ServerPanel) setConnected(connected bool) {
 	if connected {
 		p.connection.SetConnected(true)
-		p.serverInfo.SetConnected(true)
 		p.actions.SetEnabled(true)
 		p.players.SetEnabled(true)
 		p.pendingMapSync = true
-		if p.serverInfo.AutoRefreshEnabled() {
-			p.startAutoRefresh()
-		}
+		p.startAutoRefresh()
 		return
 	}
 	p.stopAutoRefresh()
 	p.connection.SetConnected(false)
-	p.serverInfo.SetConnected(false)
 	p.actions.SetEnabled(false)
 	p.players.SetEnabled(false)
 }

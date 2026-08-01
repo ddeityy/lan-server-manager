@@ -54,11 +54,9 @@ func NewServerPanel(window fyne.Window, title string, onTitleChanged, onChanged 
 		p.notifyChanged,
 	)
 	p.serverInfo = newServerInfo(
-		p.refresh,
 		p.copyConnectString,
 		p.copySTVString,
 		p.handleIntervalChanged,
-		p.handleAutoRefreshChanged,
 	)
 	p.players = newPlayerSection(p.confirmKickAll)
 	p.serverNameLabel = widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
@@ -94,25 +92,8 @@ func (p *ServerPanel) handleConfigSelected() {
 	p.notifyChanged()
 }
 
-func (p *ServerPanel) handleAutoRefreshChanged(checked bool) {
-	p.notifyChanged()
-
-	if checked {
-		p.serverInfo.SetRefreshEnabled(false)
-		if p.server != nil {
-			p.startAutoRefresh()
-		}
-		return
-	}
-
-	p.stopAutoRefresh()
-	if p.server != nil {
-		p.serverInfo.SetRefreshEnabled(true)
-	}
-}
-
 func (p *ServerPanel) handleIntervalChanged() {
-	if !p.serverInfo.AutoRefreshEnabled() || p.server == nil {
+	if p.server == nil {
 		return
 	}
 	p.startAutoRefresh()
