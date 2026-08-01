@@ -195,7 +195,7 @@ func (p *ServerPanel) buildUI(title string) {
 	form := container.NewVBox(
 		connectionBar,
 		widget.NewForm(
-			widget.NewFormItem("Address", p.addressEntry),
+			widget.NewFormItem("Address   ", p.addressEntry),
 			widget.NewFormItem("Password", p.passwordEntry),
 		),
 		actionBar,

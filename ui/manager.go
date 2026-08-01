@@ -9,6 +9,9 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+// plusTabLabel is the label shown on the add-server tab.
+const plusTabLabel = " ＋ "
+
 // savedServerTab stores one saved tab's connection details.
 type savedServerTab struct {
 	Address  string `json:"address"`
@@ -19,7 +22,7 @@ type savedServerTab struct {
 // Manager owns the tabbed interface and persists open tabs.
 type Manager struct {
 	window     fyne.Window
-	tabs       *TabStrip
+	tabs       *ServerTabs
 	panels     []*ServerPanel
 	plusTab    *container.TabItem
 	prefs      fyne.Preferences
@@ -39,14 +42,11 @@ func (m *Manager) Content() fyne.CanvasObject {
 }
 
 func (m *Manager) buildUI() {
-	docTabs := container.NewDocTabs()
-	docTabs.CloseIntercept = m.handleTabClose
-	docTabs.OnSelected = m.handleTabSelected
-	m.tabs = newTabStrip(docTabs)
+	m.tabs = NewServerTabs(m.handleTabSelected, m.handleTabClose, m.addPanel)
 
 	// The "+" tab sits after the rightmost active tab and opens a new server tab.
 	// The full-width plus (U+FF0B) renders larger than a regular '+' in most fonts.
-	m.plusTab = container.NewTabItem(" ＋ ", widget.NewLabel("Click + to add a server"))
+	m.plusTab = container.NewTabItem(plusTabLabel, widget.NewLabel("Click + to add a server"))
 
 	m.loadTabs()
 }
@@ -80,8 +80,6 @@ func (m *Manager) loadTabs() {
 
 	m.rebuildTabs()
 	m.tabs.SelectIndex(0)
-	// The renderer may not yet exist; defer the first closability update.
-	fyne.Do(m.updateTabCloseButtons)
 }
 
 // saveTabs writes the current set of server tabs to preferences.
@@ -108,7 +106,6 @@ func (m *Manager) addPanel() {
 	m.rebuildTabs()
 	m.tabs.SelectIndex(len(m.panels) - 1)
 	m.saveTabs()
-	m.updateTabCloseButtons()
 }
 
 func (m *Manager) rebuildTabs() {
@@ -179,6 +176,5 @@ func (m *Manager) closePanel(item *container.TabItem) {
 	}
 	m.tabs.SelectIndex(target)
 
-	m.updateTabCloseButtons()
 	m.saveTabs()
 }
