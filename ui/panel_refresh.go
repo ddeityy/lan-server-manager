@@ -10,7 +10,7 @@ import (
 )
 
 func (p *ServerPanel) startAutoRefresh() {
-	if p.server == nil || !p.serverInfo.AutoRefreshEnabled() {
+	if p.server == nil {
 		return
 	}
 	p.stopAutoRefresh()

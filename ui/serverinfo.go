@@ -25,8 +25,6 @@ type ServerInfo struct {
 	stvLabel             *widget.Label
 	copyConnectButton    *widget.Button
 	copySTVButton        *widget.Button
-	refreshButton        *widget.Button
-	autoRefreshCheck     *widget.Check
 	refreshIntervalEntry *widget.Entry
 	statusLabel          *widget.Label
 
@@ -34,11 +32,9 @@ type ServerInfo struct {
 }
 
 func newServerInfo(
-	onRefresh,
 	onCopyConnect,
 	onCopySTV,
 	onIntervalChanged func(),
-	onAutoRefreshChanged func(bool),
 ) *ServerInfo {
 	si := &ServerInfo{}
 
@@ -53,13 +49,6 @@ func newServerInfo(
 	si.copyConnectButton.Disable()
 	si.copySTVButton = widget.NewButtonWithIcon("", theme.ContentCopyIcon(), onCopySTV)
 	si.copySTVButton.Disable()
-
-	si.refreshButton = widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), onRefresh)
-	si.refreshButton.Disable()
-
-	si.autoRefreshCheck = widget.NewCheck("Auto refresh", onAutoRefreshChanged)
-	si.autoRefreshCheck.Checked = true
-	si.autoRefreshCheck.Refresh()
 
 	si.refreshIntervalEntry = widget.NewEntry()
 	si.refreshIntervalEntry.SetText(fmt.Sprintf("%d", defaultRefreshInterval))
@@ -83,8 +72,8 @@ func (si *ServerInfo) View() fyne.CanvasObject {
 
 	header := container.NewHBox(
 		widget.NewLabelWithStyle("Server Info", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		si.refreshButton,
-		container.NewHBox(si.autoRefreshCheck, widget.NewLabel("Interval (s)"), si.refreshIntervalEntry),
+		widget.NewLabel("Refresh interval (s):"),
+		si.refreshIntervalEntry,
 	)
 
 	return widget.NewCard("", "", container.NewVBox(
@@ -97,29 +86,6 @@ func (si *ServerInfo) View() fyne.CanvasObject {
 		connectTile,
 		si.statusLabel,
 	))
-}
-
-// SetConnected enables or disables the refresh button based on connection state
-// and auto refresh status.
-func (si *ServerInfo) SetConnected(connected bool) {
-	if !connected {
-		si.refreshButton.Disable()
-		return
-	}
-	if si.autoRefreshCheck.Checked {
-		si.refreshButton.Disable()
-		return
-	}
-	si.refreshButton.Enable()
-}
-
-// SetRefreshEnabled explicitly enables or disables the refresh button.
-func (si *ServerInfo) SetRefreshEnabled(enabled bool) {
-	if enabled {
-		si.refreshButton.Enable()
-		return
-	}
-	si.refreshButton.Disable()
 }
 
 // SetRefreshing sets the status text shown while a refresh is in flight.
@@ -141,9 +107,6 @@ func (si *ServerInfo) Reset() {
 	si.copyConnectButton.Disable()
 	si.copySTVButton.Disable()
 }
-
-// AutoRefreshEnabled returns whether the auto refresh checkbox is checked.
-func (si *ServerInfo) AutoRefreshEnabled() bool { return si.autoRefreshCheck.Checked }
 
 // RefreshInterval returns the refresh interval in seconds. Invalid values fall
 // back to the default.
