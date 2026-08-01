@@ -4,12 +4,12 @@ go 1.26.1
 
 require (
 	fyne.io/fyne/v2 v2.8.0
+	github.com/BurntSushi/toml v1.6.0
 	github.com/gorcon/rcon v1.4.0
 )
 
 require (
 	fyne.io/systray v1.12.2 // indirect
-	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/FyshOS/fancyfs v0.0.1 // indirect
 	github.com/anthonynsimon/bild v0.14.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect

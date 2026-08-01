@@ -7,6 +7,8 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+
+	"lan-server-manager/config"
 )
 
 // plusTabLabel is the label shown on the add-server tab.
@@ -30,7 +32,8 @@ type Manager struct {
 }
 
 // NewManager creates the tabbed UI and restores any previously saved tabs.
-func NewManager(window fyne.Window, prefs fyne.Preferences) *Manager {
+func NewManager(window fyne.Window, prefs fyne.Preferences, cfg config.Config) *Manager {
+	appConfig = cfg
 	m := &Manager{window: window, prefs: prefs}
 	m.buildUI()
 	return m
@@ -51,8 +54,26 @@ func (m *Manager) buildUI() {
 	m.loadTabs()
 }
 
-// loadTabs restores saved tab state, or creates one empty tab if nothing is saved.
+// loadTabs restores saved tab state, opens servers defined in the config, or
+// creates one empty tab if neither is available.
 func (m *Manager) loadTabs() {
+	if len(appConfig.Servers) > 0 {
+		for _, preset := range appConfig.Servers {
+			p := m.newPanel(m.nextTabTitle())
+			p.addressEntry.SetText(preset.Address)
+			p.passwordEntry.SetText(preset.RCONPassword)
+			m.panels = append(m.panels, p)
+		}
+
+		m.rebuildTabs()
+		m.tabs.SelectIndex(0)
+		for _, p := range m.panels {
+			p.connect()
+		}
+		m.saveTabs()
+		return
+	}
+
 	raw := m.prefs.String("tabs")
 	if raw == "" {
 		m.addPanel()

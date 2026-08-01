@@ -6,7 +6,8 @@ account : not logged in  (No account specified)
 map     : cp_badlands at: 0 x, 0 y, 0 z
 tags    : cp,nocrits
 sourcetv:  169.254.77.194:47656, delay 90.0s  (local: 0.0.0.0:27020)
-players : 0 humans, 1 bots (25 max)
+players : 1 humans, 1 bots (25 max)
 edicts  : 416 used of 2048 max
 # userid name                uniqueid            connected ping loss state  adr
 #      2 "test TV"           BOT                                     active
+#      3 "Deity. #NextYear"  [U:1:115754284]     00:06       61   22 active loopback

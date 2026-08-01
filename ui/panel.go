@@ -12,46 +12,44 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"lan-server-manager/config"
 	"lan-server-manager/server"
 )
 
 const defaultRefreshInterval = 10
 
-var mapPool = []string{
-	"cp_badlands",
-	"cp_sunshine",
-	"cp_process_f12",
-	"cp_gullywash_f9",
-	"cp_metalworks_f7",
-	"koth_bagel_rc12",
-	"koth_product_final",
-	"cp_granary_pro_rc17a3",
-	"mge_training_v8_beta4b",
+func mapList() []string {
+	if len(appConfig.Maps) > 0 {
+		return appConfig.Maps
+	}
+	return config.Default().Maps
+}
+
+func configList() []string {
+	if len(appConfig.Configs) > 0 {
+		return appConfig.Configs
+	}
+	return config.Default().Configs
 }
 
 func longestMapName() string {
-	longest := ""
-	for _, m := range mapPool {
-		if len(m) > len(longest) {
-			longest = m
-		}
-	}
-	return longest
+	return appConfig.LongestName(mapList())
 }
 
 // setMapSelection sets the map dropdown's current value and renders the
 // remaining pool options so the currently selected map is not shown twice.
 func setMapSelection(sel *widget.Select, value string) {
-	valid := slices.Contains(mapPool, value)
+	maps := mapList()
+	valid := slices.Contains(maps, value)
 	if !valid {
 		sel.Selected = ""
-		sel.Options = append([]string(nil), mapPool...)
+		sel.Options = append([]string(nil), maps...)
 		sel.Refresh()
 		return
 	}
 
-	opts := make([]string, 0, len(mapPool)-1)
-	for _, m := range mapPool {
+	opts := make([]string, 0, len(maps)-1)
+	for _, m := range maps {
 		if m != value {
 			opts = append(opts, m)
 		}
@@ -68,9 +66,12 @@ type ServerPanel struct {
 
 	lastInfo server.ServerInfo
 
-	addressEntry  *widget.Entry
-	passwordEntry *widget.Entry
-	statusLabel   *widget.Label
+	addressEntry          *widget.Entry
+	passwordEntry         *widget.Entry
+	statusLabel           *widget.Label
+	actionsStatusLabel    *widget.Label
+	serverInfoStatusLabel *widget.Label
+	serverNameLabel       *widget.Label
 
 	autoRefreshCheck     *widget.Check
 	refreshIntervalEntry *widget.Entry
@@ -79,15 +80,22 @@ type ServerPanel struct {
 	sourceTVLabel    *widget.Label
 	mapLabel         *widget.Label
 	playersLabel     *widget.Label
+	connectLabel     *widget.Label
+	stvLabel         *widget.Label
 	playerList       *widget.List
 	playersAccordion *widget.Accordion
 
-	connectButton     *widget.Button
-	disconnectButton  *widget.Button
-	refreshButton     *widget.Button
-	changeLevelButton *widget.Button
-	kickAllButton     *widget.Button
-	mapSelect         *widget.Select
+	connectButton        *widget.Button
+	disconnectButton     *widget.Button
+	refreshButton        *widget.Button
+	changeLevelButton    *widget.Button
+	changePasswordButton *widget.Button
+	execConfigButton     *widget.Button
+	kickAllButton        *widget.Button
+
+	mapSelect           *widget.Select
+	configSelect        *widget.Select
+	serverPasswordEntry *widget.Entry
 
 	refreshMutex   sync.Mutex
 	refreshTicker  *time.Ticker
@@ -120,13 +128,10 @@ func (p *ServerPanel) buildUI(title string) {
 	p.passwordEntry.SetText("test")
 	p.passwordEntry.OnChanged = func(string) { p.notifyChanged() }
 
-	p.autoRefreshCheck = widget.NewCheck("Auto refresh", func(checked bool) {
-		if checked && p.server != nil {
-			p.startAutoRefresh()
-		} else {
-			p.stopAutoRefresh()
-		}
-	})
+	p.serverPasswordEntry = widget.NewPasswordEntry()
+	p.serverPasswordEntry.OnChanged = func(string) { p.notifyChanged() }
+
+	p.autoRefreshCheck = widget.NewCheck("Auto refresh", p.handleAutoRefreshChanged)
 
 	p.refreshIntervalEntry = widget.NewEntry()
 	p.refreshIntervalEntry.SetText(fmt.Sprintf("%d", defaultRefreshInterval))
@@ -137,11 +142,16 @@ func (p *ServerPanel) buildUI(title string) {
 	}
 
 	p.statusLabel = widget.NewLabel("")
+	p.actionsStatusLabel = widget.NewLabel("")
+	p.serverInfoStatusLabel = widget.NewLabel("")
+	p.serverNameLabel = widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
 	p.addressLabel = widget.NewLabelWithStyle("-", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	p.sourceTVLabel = widget.NewLabelWithStyle("-", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	p.mapLabel = widget.NewLabelWithStyle("-", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	p.playersLabel = widget.NewLabelWithStyle("-", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	p.connectLabel = widget.NewLabelWithStyle("-", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	p.stvLabel = widget.NewLabelWithStyle("-", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
 	// Player list.
 	p.playerList = widget.NewList(
@@ -151,6 +161,10 @@ func (p *ServerPanel) buildUI(title string) {
 				widget.NewLabel("ID"),
 				widget.NewLabel("Name"),
 				widget.NewLabel("UniqueID"),
+				widget.NewLabel("Conn"),
+				widget.NewLabel("Ping"),
+				widget.NewLabel("Loss"),
+				widget.NewLabel("State"),
 				widget.NewButton("Kick", nil),
 			)
 		},
@@ -170,13 +184,25 @@ func (p *ServerPanel) buildUI(title string) {
 	p.refreshButton = widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() { p.refresh() })
 	p.refreshButton.Disable()
 
-	p.mapSelect = widget.NewSelect(mapPool, p.handleMapSelected)
-	setMapSelection(p.mapSelect, mapPool[0])
-	// Set a placeholder wide enough so any map name fits without clipping.
+	p.mapSelect = widget.NewSelect(mapList(), p.handleMapSelected)
+	setMapSelection(p.mapSelect, mapList()[0])
 	p.mapSelect.PlaceHolder = longestMapName()
 
 	p.changeLevelButton = widget.NewButton("Change map", func() { p.changeLevel() })
 	p.changeLevelButton.Disable()
+
+	p.configSelect = widget.NewSelect(configList(), func(string) { p.notifyChanged() })
+	p.configSelect.SetSelected(configList()[0])
+	// Size the config dropdown to match the map dropdown so the action rows
+	// line up. The placeholder only affects min-width; the selected config is
+	// still displayed.
+	p.configSelect.PlaceHolder = longestMapName()
+
+	p.execConfigButton = widget.NewButton("Exec config", func() { p.execConfig() })
+	p.execConfigButton.Disable()
+
+	p.changePasswordButton = widget.NewButton("Set password", func() { p.changeServerPassword() })
+	p.changePasswordButton.Disable()
 
 	p.kickAllButton = widget.NewButton("Kick All Players", func() { p.confirmKickAll() })
 	p.kickAllButton.Disable()
@@ -190,32 +216,49 @@ func (p *ServerPanel) buildUI(title string) {
 
 	connectionBox := container.NewVBox(
 		widget.NewForm(
-			widget.NewFormItem("Address  ", p.addressEntry),
+			widget.NewFormItem("Address   ", p.addressEntry),
 			widget.NewFormItem("Password", p.passwordEntry),
 		),
-		container.NewHBox(p.connectButton, p.disconnectButton),
+		container.NewGridWithColumns(2, p.connectButton, p.disconnectButton),
 		p.statusLabel,
 	)
 
 	actionBox := container.NewVBox(
-		container.NewHBox(p.mapSelect, p.changeLevelButton),
-		autoRefreshRow,
+		container.NewGridWithColumns(2, p.serverPasswordEntry, p.changePasswordButton),
+		container.NewGridWithColumns(2, p.mapSelect, p.changeLevelButton),
+		container.NewGridWithColumns(2, p.configSelect, p.execConfigButton),
+		p.actionsStatusLabel,
 	)
 
 	sidebar := container.NewVBox(
+		widget.NewCard("Server", "", p.serverNameLabel),
 		widget.NewCard("Connection", "", connectionBox),
 		widget.NewCard("Actions", "", actionBox),
 	)
+
+	copyConnect := widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() { p.copyConnectString() })
+	copySTV := widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() { p.copySTVString() })
 
 	addressTile := widget.NewCard("Address", "", p.addressLabel)
 	mapTile := widget.NewCard("Map", "", p.mapLabel)
 	playersTile := widget.NewCard("Players", "", p.playersLabel)
 	sourceTVTile := widget.NewCard("SourceTV", "", p.sourceTVLabel)
+	connectTile := widget.NewCard("Connect", "", container.NewBorder(nil, nil, nil, copyConnect, p.connectLabel))
+	stvTile := widget.NewCard("STV", "", container.NewBorder(nil, nil, nil, copySTV, p.stvLabel))
 
-	serverInfoCard := widget.NewCard("Server Info", "", container.NewVBox(
+	serverInfoHeader := container.NewHBox(
+		widget.NewLabelWithStyle("Server Info", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		p.refreshButton,
+		autoRefreshRow,
+	)
+
+	serverInfoCard := widget.NewCard("", "", container.NewVBox(
+		serverInfoHeader,
 		container.NewGridWithColumns(2, mapTile, playersTile),
 		container.NewGridWithColumns(2, addressTile, sourceTVTile),
+		stvTile,
+		connectTile,
+		p.serverInfoStatusLabel,
 	))
 
 	topRow := container.NewBorder(nil, nil, sidebar, nil, serverInfoCard)
@@ -227,6 +270,7 @@ func (p *ServerPanel) buildUI(title string) {
 
 func (p *ServerPanel) updateTitle(title string) {
 	p.tabItem.Text = title
+	p.serverNameLabel.SetText(title)
 	if p.onTitleChanged != nil {
 		p.onTitleChanged()
 	}
@@ -243,12 +287,34 @@ func (p *ServerPanel) handleMapSelected(value string) {
 	p.notifyChanged()
 }
 
+func (p *ServerPanel) handleAutoRefreshChanged(checked bool) {
+	p.notifyChanged()
+
+	if checked {
+		p.refreshButton.Disable()
+		if p.server != nil {
+			p.startAutoRefresh()
+		}
+		return
+	}
+
+	p.stopAutoRefresh()
+	if p.server != nil {
+		p.refreshButton.Enable()
+	}
+}
+
 func (p *ServerPanel) setConnected(connected bool) {
 	if connected {
 		p.connectButton.Disable()
 		p.disconnectButton.Enable()
 		p.refreshButton.Enable()
 		p.changeLevelButton.Enable()
+		if p.autoRefreshCheck.Checked {
+			p.refreshButton.Disable()
+		}
+		p.changePasswordButton.Enable()
+		p.execConfigButton.Enable()
 		p.kickAllButton.Enable()
 		p.statusLabel.SetText("Connected")
 		p.pendingMapSync = true
@@ -262,6 +328,8 @@ func (p *ServerPanel) setConnected(connected bool) {
 	p.disconnectButton.Disable()
 	p.refreshButton.Disable()
 	p.changeLevelButton.Disable()
+	p.changePasswordButton.Disable()
+	p.execConfigButton.Disable()
 	p.kickAllButton.Disable()
 	p.statusLabel.SetText("Disconnected")
 }
@@ -273,6 +341,9 @@ func (p *ServerPanel) resetInfo() {
 	p.mapLabel.SetText("-")
 	p.playersLabel.SetText("-")
 	p.sourceTVLabel.SetText("-")
+	p.connectLabel.SetText("-")
+	p.stvLabel.SetText("-")
+	p.serverInfoStatusLabel.SetText("")
 
 	p.playerList.Length = func() int { return 0 }
 	p.playerList.UpdateItem = func(_ widget.ListItemID, _ fyne.CanvasObject) {}
@@ -284,7 +355,7 @@ func (p *ServerPanel) resetInfo() {
 
 func (p *ServerPanel) updateInfo(info server.ServerInfo, err error) {
 	if err != nil {
-		p.statusLabel.SetText(fmt.Sprintf("Refresh failed: %v", err))
+		p.serverInfoStatusLabel.SetText(fmt.Sprintf("Refresh failed: %v", err))
 		return
 	}
 
@@ -303,6 +374,8 @@ func (p *ServerPanel) updateInfo(info server.ServerInfo, err error) {
 	p.mapLabel.SetText(info.Map)
 	p.playersLabel.SetText(fmt.Sprintf("%d / %d", info.HumanPlayers, info.MaxPlayers))
 
+	p.updateConnectStrings()
+
 	if p.pendingMapSync {
 		p.pendingMapSync = false
 		setMapSelection(p.mapSelect, info.Map)
@@ -320,7 +393,11 @@ func (p *ServerPanel) updateInfo(info server.ServerInfo, err error) {
 		row.Objects[0].(*widget.Label).SetText(fmt.Sprintf("%d", player.UserID))
 		row.Objects[1].(*widget.Label).SetText(player.Name)
 		row.Objects[2].(*widget.Label).SetText(player.UniqueID)
-		btn := row.Objects[3].(*widget.Button)
+		row.Objects[3].(*widget.Label).SetText(player.Connected)
+		row.Objects[4].(*widget.Label).SetText(fmt.Sprintf("%d", player.Ping))
+		row.Objects[5].(*widget.Label).SetText(fmt.Sprintf("%d", player.Loss))
+		row.Objects[6].(*widget.Label).SetText(player.State)
+		btn := row.Objects[7].(*widget.Button)
 		btn.SetText("Kick")
 		btn.OnTapped = func() { p.kick(player.UserID) }
 		btn.Enable()
@@ -335,7 +412,43 @@ func (p *ServerPanel) updateInfo(info server.ServerInfo, err error) {
 		p.kickAllButton.Enable()
 	}
 
-	p.statusLabel.SetText("Connected")
+	p.serverInfoStatusLabel.SetText("Connected")
+}
+
+// updateConnectStrings rebuilds the connect and stv copy strings from the
+// current server info and password entry.
+func (p *ServerPanel) updateConnectStrings() {
+	if p.lastInfo.Address == "" {
+		p.connectLabel.SetText("-")
+		p.stvLabel.SetText("-")
+		return
+	}
+
+	password := p.serverPasswordEntry.Text
+	connect := fmt.Sprintf("connect %s", p.lastInfo.Address)
+	if password != "" {
+		connect += fmt.Sprintf("; password %s", password)
+	}
+	p.connectLabel.SetText(connect)
+
+	stv := fmt.Sprintf("connect %s", p.lastInfo.SourceTV.Address)
+	if password != "" {
+		stv += fmt.Sprintf("; password %s", password)
+	}
+	if p.lastInfo.SourceTV.Address == "" {
+		stv = "-"
+	}
+	p.stvLabel.SetText(stv)
+}
+
+func (p *ServerPanel) copyConnectString() {
+	fyne.CurrentApp().Clipboard().SetContent(p.connectLabel.Text)
+	p.serverInfoStatusLabel.SetText("Connect string copied")
+}
+
+func (p *ServerPanel) copySTVString() {
+	fyne.CurrentApp().Clipboard().SetContent(p.stvLabel.Text)
+	p.serverInfoStatusLabel.SetText("STV string copied")
 }
 
 // parseRefreshInterval reads the interval entry, returning seconds.

@@ -71,7 +71,7 @@ func (p *ServerPanel) refresh() {
 		return
 	}
 
-	fyne.Do(func() { p.statusLabel.SetText("Refreshing...") })
+	fyne.Do(func() { p.serverInfoStatusLabel.SetText("Refreshing...") })
 
 	go func() {
 		info, err := p.doRefresh()
@@ -81,21 +81,21 @@ func (p *ServerPanel) refresh() {
 
 func (p *ServerPanel) kick(userid int) {
 	if p.server == nil {
-		fyne.Do(func() { p.statusLabel.SetText("Not connected") })
+		fyne.Do(func() { p.actionsStatusLabel.SetText("Not connected") })
 		return
 	}
 
-	fyne.Do(func() { p.statusLabel.SetText(fmt.Sprintf("Kicking player %d...", userid)) })
+	fyne.Do(func() { p.actionsStatusLabel.SetText(fmt.Sprintf("Kicking player %d...", userid)) })
 
 	go func() {
 		err := p.server.Kick(userid)
 
 		fyne.Do(func() {
 			if err != nil {
-				p.statusLabel.SetText(fmt.Sprintf("Kick failed: %v", err))
+				p.actionsStatusLabel.SetText(fmt.Sprintf("Kick failed: %v", err))
 				return
 			}
-			p.statusLabel.SetText(fmt.Sprintf("Kicked player %d", userid))
+			p.actionsStatusLabel.SetText(fmt.Sprintf("Kicked player %d", userid))
 			p.refresh()
 		})
 	}()
@@ -117,13 +117,13 @@ func (p *ServerPanel) confirmKickAll() {
 
 func (p *ServerPanel) kickAll() {
 	if p.server == nil {
-		fyne.Do(func() { p.statusLabel.SetText("Not connected") })
+		fyne.Do(func() { p.actionsStatusLabel.SetText("Not connected") })
 		return
 	}
 
 	fyne.Do(func() {
 		p.kickAllButton.Disable()
-		p.statusLabel.SetText("Kicking all players...")
+		p.actionsStatusLabel.SetText("Kicking all players...")
 	})
 
 	go func() {
@@ -134,7 +134,7 @@ func (p *ServerPanel) kickAll() {
 
 		if len(players) == 0 {
 			fyne.Do(func() {
-				p.statusLabel.SetText("No players to kick")
+				p.actionsStatusLabel.SetText("No players to kick")
 				p.kickAllButton.Enable()
 			})
 			return
@@ -149,9 +149,9 @@ func (p *ServerPanel) kickAll() {
 
 		fyne.Do(func() {
 			if lastErr != nil {
-				p.statusLabel.SetText(fmt.Sprintf("Kick all finished with errors: %v", lastErr))
+				p.actionsStatusLabel.SetText(fmt.Sprintf("Kick all finished with errors: %v", lastErr))
 			} else {
-				p.statusLabel.SetText("Kicked all players")
+				p.actionsStatusLabel.SetText("Kicked all players")
 			}
 			p.refresh()
 		})
@@ -161,17 +161,17 @@ func (p *ServerPanel) kickAll() {
 func (p *ServerPanel) changeLevel() {
 	mapName := p.mapSelect.Selected
 	if mapName == "" {
-		fyne.Do(func() { p.statusLabel.SetText("Select a map first") })
+		fyne.Do(func() { p.actionsStatusLabel.SetText("Select a map first") })
 		return
 	}
 	if p.server == nil {
-		fyne.Do(func() { p.statusLabel.SetText("Not connected") })
+		fyne.Do(func() { p.actionsStatusLabel.SetText("Not connected") })
 		return
 	}
 
 	fyne.Do(func() {
 		p.changeLevelButton.Disable()
-		p.statusLabel.SetText("Changing level to " + mapName + "...")
+		p.actionsStatusLabel.SetText("Changing level to " + mapName + "...")
 	})
 
 	go func() {
@@ -180,10 +180,67 @@ func (p *ServerPanel) changeLevel() {
 		fyne.Do(func() {
 			p.changeLevelButton.Enable()
 			if err != nil {
-				p.statusLabel.SetText(fmt.Sprintf("Changelevel failed: %v", err))
+				p.actionsStatusLabel.SetText(fmt.Sprintf("Changelevel failed: %v", err))
 				return
 			}
-			p.statusLabel.SetText("Changed level to " + mapName)
+			p.actionsStatusLabel.SetText("Changed level to " + mapName)
+		})
+	}()
+}
+
+func (p *ServerPanel) changeServerPassword() {
+	password := p.serverPasswordEntry.Text
+	if p.server == nil {
+		fyne.Do(func() { p.actionsStatusLabel.SetText("Not connected") })
+		return
+	}
+
+	fyne.Do(func() {
+		p.changePasswordButton.Disable()
+		p.actionsStatusLabel.SetText("Setting server password...")
+	})
+
+	go func() {
+		err := p.server.SetPassword(password)
+
+		fyne.Do(func() {
+			p.changePasswordButton.Enable()
+			if err != nil {
+				p.actionsStatusLabel.SetText(fmt.Sprintf("Set password failed: %v", err))
+				return
+			}
+			p.updateConnectStrings()
+			p.actionsStatusLabel.SetText("Server password updated")
+		})
+	}()
+}
+
+func (p *ServerPanel) execConfig() {
+	configName := p.configSelect.Selected
+	if configName == "" {
+		fyne.Do(func() { p.actionsStatusLabel.SetText("Select a config first") })
+		return
+	}
+	if p.server == nil {
+		fyne.Do(func() { p.actionsStatusLabel.SetText("Not connected") })
+		return
+	}
+
+	fyne.Do(func() {
+		p.execConfigButton.Disable()
+		p.actionsStatusLabel.SetText("Executing config " + configName + "...")
+	})
+
+	go func() {
+		err := p.server.ExecConfig(configName)
+
+		fyne.Do(func() {
+			p.execConfigButton.Enable()
+			if err != nil {
+				p.actionsStatusLabel.SetText(fmt.Sprintf("Exec config failed: %v", err))
+				return
+			}
+			p.actionsStatusLabel.SetText("Executed config " + configName)
 		})
 	}()
 }
