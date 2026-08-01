@@ -1,0 +1,26 @@
+maps = [
+    "cp_badlands",
+    "cp_sunshine",
+    "cp_process_f12",
+    "cp_gullywash_f9",
+    "cp_metalworks_f7",
+    "koth_bagel_rc12",
+    "koth_product_final",
+    "cp_granary_pro_rc17a3",
+    "mge_training_v8_beta4b",
+]
+
+configs = [
+    "etf2l_6v6_5cp",
+    "etf2l_6v6_koth",
+]
+
+# Preload servers on startup. Each entry opens its own tab and connects
+# automatically.
+# [[servers]]
+# address = "127.0.0.1:27015"
+# rcon_password = "password 1"
+
+# [[servers]]
+# address = "127.0.0.1:27016"
+# rcon_password = "password 2"

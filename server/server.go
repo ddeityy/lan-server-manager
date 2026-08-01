@@ -11,9 +11,13 @@ import (
 
 // Player holds the fields we care about from the status player table.
 type Player struct {
-	UserID   int
-	Name     string
-	UniqueID string
+	UserID    int
+	Name      string
+	UniqueID  string
+	Connected string
+	Ping      int
+	Loss      int
+	State     string
 }
 
 // SourceTV holds the parsed SourceTV line from the status output.
@@ -94,11 +98,24 @@ func (s *Server) Kick(userID int) error {
 
 // ChangeLevel sends the Source changelevel command for the given map.
 func (s *Server) ChangeLevel(level string) error {
+	return s.execute("changelevel " + level)
+}
+
+// SetPassword sends the Source sv_password command for the given password.
+func (s *Server) SetPassword(password string) error {
+	return s.execute("sv_password " + password)
+}
+
+// ExecConfig sends the Source exec command for the given config name.
+func (s *Server) ExecConfig(config string) error {
+	return s.execute("exec " + config)
+}
+
+func (s *Server) execute(cmd string) error {
 	if s.conn == nil {
 		return fmt.Errorf("not connected")
 	}
 
-	cmd := "changelevel " + level
 	_, err := s.conn.Execute(cmd)
 	if err != nil {
 		// Connection may have dropped; try once more with a fresh connection.
@@ -222,17 +239,23 @@ func parsePlayersTable(lines []string) []Player {
 
 	for _, line := range lines {
 		line = strings.TrimRight(line, "\r")
-		if m := regexp.MustCompile(`^#\s+(\d+)\s+"([^"]*)"\s+(\S+)`).FindStringSubmatch(line); m != nil {
+		if m := regexp.MustCompile(`^#\s+(\d+)\s+"([^"]*)"\s+(\S+)\s+(\S+)\s+(\d+)\s+(\d+)\s+(\S+)`).FindStringSubmatch(line); m != nil {
 			uniqueID := m[3]
 			// Skip bot entries.
 			if uniqueID == "BOT" {
 				continue
 			}
 			id, _ := strconv.Atoi(m[1])
+			ping, _ := strconv.Atoi(m[5])
+			loss, _ := strconv.Atoi(m[6])
 			players = append(players, Player{
-				UserID:   id,
-				Name:     m[2],
-				UniqueID: uniqueID,
+				UserID:    id,
+				Name:      m[2],
+				UniqueID:  uniqueID,
+				Connected: m[4],
+				Ping:      ping,
+				Loss:      loss,
+				State:     m[7],
 			})
 		}
 	}
