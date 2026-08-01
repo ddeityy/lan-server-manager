@@ -16,8 +16,8 @@ type Player struct {
 	UniqueID string
 }
 
-// SourceTVInfo holds the parsed SourceTV line from the status output.
-type SourceTVInfo struct {
+// SourceTV holds the parsed SourceTV line from the status output.
+type SourceTV struct {
 	Address string
 	Delay   string
 	Local   string
@@ -28,7 +28,7 @@ type ServerInfo struct {
 	Hostname     string
 	Address      string
 	Map          string
-	SourceTV     SourceTVInfo
+	SourceTV     SourceTV
 	HumanPlayers int
 	MaxPlayers   int
 	Players      []Player
@@ -39,7 +39,7 @@ type Server struct {
 	address  string
 	password string
 	conn     *rcon.Conn
-	info     ServerInfo
+	lastInfo ServerInfo
 }
 
 // NewServer creates a Server without connecting.
@@ -70,13 +70,13 @@ func (s *Server) Close() error {
 	return nil
 }
 
-// Kick removes a player from the server by their userid.
-func (s *Server) Kick(userid int) error {
+// Kick removes a player from the server by their user ID.
+func (s *Server) Kick(userID int) error {
 	if s.conn == nil {
 		return fmt.Errorf("not connected")
 	}
 
-	cmd := fmt.Sprintf("kickid %d", userid)
+	cmd := fmt.Sprintf("kickid %d", userID)
 	_, err := s.conn.Execute(cmd)
 	if err != nil {
 		// Connection may have dropped; try once more with a fresh connection.
@@ -93,12 +93,12 @@ func (s *Server) Kick(userid int) error {
 }
 
 // ChangeLevel sends the Source changelevel command for the given map.
-func (s *Server) ChangeLevel(mapName string) error {
+func (s *Server) ChangeLevel(level string) error {
 	if s.conn == nil {
 		return fmt.Errorf("not connected")
 	}
 
-	cmd := "changelevel " + mapName
+	cmd := "changelevel " + level
 	_, err := s.conn.Execute(cmd)
 	if err != nil {
 		// Connection may have dropped; try once more with a fresh connection.
@@ -145,20 +145,14 @@ func (s *Server) Refresh() error {
 		info.Address = s.address
 	}
 
-	s.info = info
+	s.lastInfo = info
 	return nil
 }
 
 // Info returns the most recently parsed server information.
 func (s *Server) Info() ServerInfo {
-	return s.info
+	return s.lastInfo
 }
-
-var (
-	udpIPRe    = regexp.MustCompile(`udp/ip\s*:\s*(\S+)`)
-	sourceTVRe = regexp.MustCompile(`sourcetv:\s*([^,]+),\s*delay\s+([0-9.]+s)(?:\s*\(local:\s*([^)]+)\))?`)
-	playerRe   = regexp.MustCompile(`^#\s+(\d+)\s+"([^"]*)"\s+(\S+)`)
-)
 
 // ParseStatus extracts the fields we need from the Source engine status text.
 func ParseStatus(status string) (ServerInfo, error) {
@@ -174,18 +168,18 @@ func ParseStatus(status string) (ServerInfo, error) {
 
 		switch {
 		case strings.HasPrefix(line, "hostname"):
-			if idx := strings.Index(line, ":"); idx != -1 {
-				info.Hostname = strings.TrimSpace(line[idx+1:])
+			if _, after, ok := strings.Cut(line, ":"); ok {
+				info.Hostname = strings.TrimSpace(after)
 			}
 
 		case strings.HasPrefix(line, "udp/ip"):
-			if m := udpIPRe.FindStringSubmatch(line); len(m) > 1 {
+			if m := regexp.MustCompile(`udp/ip\s*:\s*(\S+)`).FindStringSubmatch(line); len(m) > 1 {
 				info.Address = m[1]
 			}
 
 		case strings.HasPrefix(line, "map"):
-			if idx := strings.Index(line, ":"); idx != -1 {
-				value := strings.TrimSpace(line[idx+1:])
+			if _, after, ok := strings.Cut(line, ":"); ok {
+				value := strings.TrimSpace(after)
 				// "cp_badlands at: 0 x, 0 y, 0 z"
 				if at := strings.Index(value, " at:"); at != -1 {
 					value = value[:at]
@@ -194,7 +188,7 @@ func ParseStatus(status string) (ServerInfo, error) {
 			}
 
 		case strings.HasPrefix(line, "sourcetv"):
-			if m := sourceTVRe.FindStringSubmatch(line); len(m) > 2 {
+			if m := regexp.MustCompile(`sourcetv:\s*([^,]+),\s*delay\s+([0-9.]+s)(?:\s*\(local:\s*([^)]+)\))?`).FindStringSubmatch(line); len(m) > 2 {
 				info.SourceTV.Address = m[1]
 				info.SourceTV.Delay = m[2]
 				if len(m) > 3 {
@@ -228,7 +222,7 @@ func parsePlayersTable(lines []string) []Player {
 
 	for _, line := range lines {
 		line = strings.TrimRight(line, "\r")
-		if m := playerRe.FindStringSubmatch(line); m != nil {
+		if m := regexp.MustCompile(`^#\s+(\d+)\s+"([^"]*)"\s+(\S+)`).FindStringSubmatch(line); m != nil {
 			uniqueID := m[3]
 			// Skip bot entries.
 			if uniqueID == "BOT" {

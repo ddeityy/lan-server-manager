@@ -7,15 +7,15 @@ import (
 	"fyne.io/fyne/v2/container"
 )
 
-// updateTabClosability hides the close button on the last remaining server tab
+// updateTabCloseButtons hides the close button on the last remaining server tab
 // and on the "+" tab. Fyne assigns every DocTabs item a close handler, so we nil
 // it out via reflection when it should not be shown.
-func (m *Manager) updateTabClosability() {
+func (m *Manager) updateTabCloseButtons() {
 	closable := len(m.panels) > 1
 	for _, panel := range m.panels {
 		item := panel.TabItem()
 		if closable {
-			setTabCloseHandler(item, func() { m.onTabCloseIntercept(item) })
+			setTabCloseHandler(item, func() { m.handleTabClose(item) })
 		} else {
 			setTabCloseHandler(item, nil)
 		}

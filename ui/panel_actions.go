@@ -159,8 +159,8 @@ func (p *ServerPanel) kickAll() {
 }
 
 func (p *ServerPanel) changeLevel() {
-	selected := p.mapSelect.Selected
-	if selected == "" {
+	mapName := p.mapSelect.Selected
+	if mapName == "" {
 		fyne.Do(func() { p.statusLabel.SetText("Select a map first") })
 		return
 	}
@@ -171,11 +171,11 @@ func (p *ServerPanel) changeLevel() {
 
 	fyne.Do(func() {
 		p.changeLevelButton.Disable()
-		p.statusLabel.SetText("Changing level to " + selected + "...")
+		p.statusLabel.SetText("Changing level to " + mapName + "...")
 	})
 
 	go func() {
-		err := p.server.ChangeLevel(selected)
+		err := p.server.ChangeLevel(mapName)
 
 		fyne.Do(func() {
 			p.changeLevelButton.Enable()
@@ -183,7 +183,7 @@ func (p *ServerPanel) changeLevel() {
 				p.statusLabel.SetText(fmt.Sprintf("Changelevel failed: %v", err))
 				return
 			}
-			p.statusLabel.SetText("Changed level to " + selected)
+			p.statusLabel.SetText("Changed level to " + mapName)
 		})
 	}()
 }

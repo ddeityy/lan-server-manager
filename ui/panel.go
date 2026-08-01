@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ import (
 const defaultRefreshInterval = 10
 
 var mapPool = []string{
+	"cp_badlands",
 	"cp_sunshine",
 	"cp_process_f12",
 	"cp_gullywash_f9",
@@ -24,7 +26,7 @@ var mapPool = []string{
 	"koth_bagel_rc12",
 	"koth_product_final",
 	"cp_granary_pro_rc17a3",
-	"cp_badlands",
+	"mge_training_v8_beta4b",
 }
 
 func longestMapName() string {
@@ -35,6 +37,28 @@ func longestMapName() string {
 		}
 	}
 	return longest
+}
+
+// setMapSelection sets the map dropdown's current value and renders the
+// remaining pool options so the currently selected map is not shown twice.
+func setMapSelection(sel *widget.Select, value string) {
+	valid := slices.Contains(mapPool, value)
+	if !valid {
+		sel.Selected = ""
+		sel.Options = append([]string(nil), mapPool...)
+		sel.Refresh()
+		return
+	}
+
+	opts := make([]string, 0, len(mapPool)-1)
+	for _, m := range mapPool {
+		if m != value {
+			opts = append(opts, m)
+		}
+	}
+	sel.Selected = value
+	sel.Options = opts
+	sel.Refresh()
 }
 
 // ServerPanel is the full UI for a single TF2 server connection.
@@ -51,7 +75,7 @@ type ServerPanel struct {
 	autoRefreshCheck     *widget.Check
 	refreshIntervalEntry *widget.Entry
 
-	ipLabel          *widget.Label
+	addressLabel     *widget.Label
 	sourceTVLabel    *widget.Label
 	mapLabel         *widget.Label
 	playersLabel     *widget.Label
@@ -65,18 +89,19 @@ type ServerPanel struct {
 	kickAllButton     *widget.Button
 	mapSelect         *widget.Select
 
-	refreshMu     sync.Mutex
-	refreshTicker *time.Ticker
-	refreshStopCh chan struct{}
+	refreshMutex   sync.Mutex
+	refreshTicker  *time.Ticker
+	refreshStop    chan struct{}
+	pendingMapSync bool
 
-	tabItem     *container.TabItem
-	onTitleChan func()
-	onChanged   func()
+	tabItem        *container.TabItem
+	onTitleChanged func()
+	onChanged      func()
 }
 
 // NewServerPanel creates a new tab panel with default connection values.
 func NewServerPanel(window fyne.Window, title string, onTitleChanged, onChanged func()) *ServerPanel {
-	p := &ServerPanel{window: window, onTitleChan: onTitleChanged, onChanged: onChanged}
+	p := &ServerPanel{window: window, onTitleChanged: onTitleChanged, onChanged: onChanged}
 	p.buildUI(title)
 	return p
 }
@@ -113,8 +138,8 @@ func (p *ServerPanel) buildUI(title string) {
 
 	p.statusLabel = widget.NewLabel("")
 
-	regionLabel := widget.NewLabelWithStyle("Server", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	p.ipLabel = widget.NewLabel("Address: -")
+	serverSectionLabel := widget.NewLabelWithStyle("Server", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	p.addressLabel = widget.NewLabel("Address: -")
 	p.sourceTVLabel = widget.NewLabel("SourceTV: -")
 	p.mapLabel = widget.NewLabel("Map: -")
 	p.playersLabel = widget.NewLabel("Players: -")
@@ -146,18 +171,18 @@ func (p *ServerPanel) buildUI(title string) {
 	p.refreshButton = widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() { p.refresh() })
 	p.refreshButton.Disable()
 
-	p.mapSelect = widget.NewSelect(mapPool, func(string) { p.notifyChanged() })
-	p.mapSelect.SetSelected("cp_badlands")
+	p.mapSelect = widget.NewSelect(mapPool, p.handleMapSelected)
+	setMapSelection(p.mapSelect, mapPool[0])
 	// Set a placeholder wide enough so any map name fits without clipping.
 	p.mapSelect.PlaceHolder = longestMapName()
 
-	p.changeLevelButton = widget.NewButton("Change Level", func() { p.changeLevel() })
+	p.changeLevelButton = widget.NewButton("Change map", func() { p.changeLevel() })
 	p.changeLevelButton.Disable()
 
 	p.kickAllButton = widget.NewButton("Kick All Players", func() { p.confirmKickAll() })
 	p.kickAllButton.Disable()
 
-	connectionBar := container.NewHBox(p.connectButton, p.disconnectButton)
+	connectionBar := container.NewHBox(p.connectButton)
 	actionBar := container.NewHBox(p.mapSelect, p.changeLevelButton)
 
 	p.refreshIntervalEntry.SetPlaceHolder("seconds")
@@ -168,21 +193,21 @@ func (p *ServerPanel) buildUI(title string) {
 	)
 
 	form := container.NewVBox(
+		connectionBar,
 		widget.NewForm(
 			widget.NewFormItem("Address", p.addressEntry),
 			widget.NewFormItem("Password", p.passwordEntry),
 		),
-		connectionBar,
 		actionBar,
 		p.statusLabel,
 		autoRefreshRow,
 	)
 
-	serverHeader := container.NewHBox(regionLabel, p.refreshButton)
+	serverHeader := container.NewHBox(serverSectionLabel, p.refreshButton)
 
 	serverCard := container.NewVBox(
 		serverHeader,
-		p.ipLabel,
+		p.addressLabel,
 		p.sourceTVLabel,
 		p.mapLabel,
 		p.playersLabel,
@@ -196,8 +221,8 @@ func (p *ServerPanel) buildUI(title string) {
 
 func (p *ServerPanel) updateTitle(title string) {
 	p.tabItem.Text = title
-	if p.onTitleChan != nil {
-		p.onTitleChan()
+	if p.onTitleChanged != nil {
+		p.onTitleChanged()
 	}
 }
 
@@ -205,6 +230,11 @@ func (p *ServerPanel) notifyChanged() {
 	if p.onChanged != nil {
 		p.onChanged()
 	}
+}
+
+func (p *ServerPanel) handleMapSelected(value string) {
+	setMapSelection(p.mapSelect, value)
+	p.notifyChanged()
 }
 
 func (p *ServerPanel) setConnected(connected bool) {
@@ -215,6 +245,7 @@ func (p *ServerPanel) setConnected(connected bool) {
 		p.changeLevelButton.Enable()
 		p.kickAllButton.Enable()
 		p.statusLabel.SetText("Connected")
+		p.pendingMapSync = true
 		if p.autoRefreshCheck.Checked {
 			p.startAutoRefresh()
 		}
@@ -232,7 +263,7 @@ func (p *ServerPanel) setConnected(connected bool) {
 func (p *ServerPanel) resetInfo() {
 	p.lastInfo = server.ServerInfo{}
 
-	p.ipLabel.SetText("Address: -")
+	p.addressLabel.SetText("Address: -")
 	p.mapLabel.SetText("Map: -")
 	p.playersLabel.SetText("Players: -")
 	p.sourceTVLabel.SetText("SourceTV: -")
@@ -253,7 +284,7 @@ func (p *ServerPanel) updateInfo(info server.ServerInfo, err error) {
 
 	p.lastInfo = info
 
-	p.ipLabel.SetText("Address: " + info.Address)
+	p.addressLabel.SetText("Address: " + info.Address)
 	if info.SourceTV.Address != "" {
 		tvText := fmt.Sprintf("SourceTV: %s (%s)", info.SourceTV.Address, info.SourceTV.Delay)
 		if info.SourceTV.Local != "" {
@@ -265,6 +296,12 @@ func (p *ServerPanel) updateInfo(info server.ServerInfo, err error) {
 	}
 	p.mapLabel.SetText("Map: " + info.Map)
 	p.playersLabel.SetText(fmt.Sprintf("Players: %d / %d", info.HumanPlayers, info.MaxPlayers))
+
+	if p.pendingMapSync {
+		p.pendingMapSync = false
+		setMapSelection(p.mapSelect, info.Map)
+		p.notifyChanged()
+	}
 
 	if info.Hostname != "" {
 		p.updateTitle(info.Hostname)
@@ -317,12 +354,12 @@ func (p *ServerPanel) startAutoRefresh() {
 
 	interval := time.Duration(p.parseRefreshInterval()) * time.Second
 	p.refreshTicker = time.NewTicker(interval)
-	p.refreshStopCh = make(chan struct{})
+	p.refreshStop = make(chan struct{})
 
 	go func() {
 		for {
 			select {
-			case <-p.refreshStopCh:
+			case <-p.refreshStop:
 				return
 			case <-p.refreshTicker.C:
 				info, err := p.doRefresh()
@@ -337,17 +374,17 @@ func (p *ServerPanel) stopAutoRefresh() {
 		p.refreshTicker.Stop()
 		p.refreshTicker = nil
 	}
-	if p.refreshStopCh != nil {
-		close(p.refreshStopCh)
-		p.refreshStopCh = nil
+	if p.refreshStop != nil {
+		close(p.refreshStop)
+		p.refreshStop = nil
 	}
 }
 
 // doRefresh performs a synchronous status refresh. It serializes access to the
 // server so manual and automatic refreshes cannot overlap.
 func (p *ServerPanel) doRefresh() (server.ServerInfo, error) {
-	p.refreshMu.Lock()
-	defer p.refreshMu.Unlock()
+	p.refreshMutex.Lock()
+	defer p.refreshMutex.Unlock()
 
 	if p.server == nil {
 		return server.ServerInfo{}, fmt.Errorf("not connected")

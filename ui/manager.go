@@ -9,8 +9,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// tabPrefs stores one saved tab's connection details.
-type tabPrefs struct {
+// savedServerTab stores one saved tab's connection details.
+type savedServerTab struct {
 	Address  string `json:"address"`
 	Password string `json:"password"`
 	Map      string `json:"map"`
@@ -40,8 +40,8 @@ func (m *Manager) Content() fyne.CanvasObject {
 
 func (m *Manager) buildUI() {
 	docTabs := container.NewDocTabs()
-	docTabs.CloseIntercept = m.onTabCloseIntercept
-	docTabs.OnSelected = m.onTabSelected
+	docTabs.CloseIntercept = m.handleTabClose
+	docTabs.OnSelected = m.handleTabSelected
 	m.tabs = newTabStrip(docTabs)
 
 	// The "+" tab sits after the rightmost active tab and opens a new server tab.
@@ -59,7 +59,7 @@ func (m *Manager) loadTabs() {
 		return
 	}
 
-	var saved []tabPrefs
+	var saved []savedServerTab
 	if err := json.Unmarshal([]byte(raw), &saved); err != nil {
 		m.addPanel()
 		return
@@ -69,7 +69,7 @@ func (m *Manager) loadTabs() {
 		p := m.newPanel(m.nextTabTitle())
 		p.addressEntry.SetText(t.Address)
 		p.passwordEntry.SetText(t.Password)
-		p.mapSelect.SetSelected(t.Map)
+		setMapSelection(p.mapSelect, t.Map)
 		m.panels = append(m.panels, p)
 	}
 
@@ -78,17 +78,17 @@ func (m *Manager) loadTabs() {
 		return
 	}
 
-	m.rebuildItems()
+	m.rebuildTabs()
 	m.tabs.SelectIndex(0)
-	// The renderer may not exist yet; defer the first closability update.
-	fyne.Do(m.updateTabClosability)
+	// The renderer may not yet exist; defer the first closability update.
+	fyne.Do(m.updateTabCloseButtons)
 }
 
 // saveTabs writes the current set of server tabs to preferences.
 func (m *Manager) saveTabs() {
-	saved := make([]tabPrefs, len(m.panels))
+	saved := make([]savedServerTab, len(m.panels))
 	for i, p := range m.panels {
-		saved[i] = tabPrefs{
+		saved[i] = savedServerTab{
 			Address:  p.addressEntry.Text,
 			Password: p.passwordEntry.Text,
 			Map:      p.mapSelect.Selected,
@@ -105,13 +105,13 @@ func (m *Manager) saveTabs() {
 func (m *Manager) addPanel() {
 	p := m.newPanel(m.nextTabTitle())
 	m.panels = append(m.panels, p)
-	m.rebuildItems()
+	m.rebuildTabs()
 	m.tabs.SelectIndex(len(m.panels) - 1)
 	m.saveTabs()
-	m.updateTabClosability()
+	m.updateTabCloseButtons()
 }
 
-func (m *Manager) rebuildItems() {
+func (m *Manager) rebuildTabs() {
 	items := make([]*container.TabItem, 0, len(m.panels)+1)
 	for _, p := range m.panels {
 		items = append(items, p.TabItem())
@@ -134,13 +134,13 @@ func (m *Manager) nextTabTitle() string {
 	return fmt.Sprintf("Server %d", m.tabCounter)
 }
 
-func (m *Manager) onTabSelected(item *container.TabItem) {
+func (m *Manager) handleTabSelected(item *container.TabItem) {
 	if item == m.plusTab {
 		m.addPanel()
 	}
 }
 
-func (m *Manager) onTabCloseIntercept(item *container.TabItem) {
+func (m *Manager) handleTabClose(item *container.TabItem) {
 	if item == m.plusTab {
 		return
 	}
@@ -166,7 +166,7 @@ func (m *Manager) closePanel(item *container.TabItem) {
 		return
 	}
 
-	m.rebuildItems()
+	m.rebuildTabs()
 	m.saveTabs()
 
 	target := closedIndex
@@ -178,5 +178,5 @@ func (m *Manager) closePanel(item *container.TabItem) {
 	}
 	m.tabs.SelectIndex(target)
 
-	m.updateTabClosability()
+	m.updateTabCloseButtons()
 }
