@@ -29,12 +29,11 @@ type SourceTV struct {
 	Local   string
 }
 
-// Address holds the three addresses reported by the Source engine status command:
-// SDR (the reported UDP/IP endpoint), Local bind, and public Steam IP.
+// Address holds the addresses reported by the Source engine status command:
+// the reported UDP/IP endpoint and the local bind.
 type Address struct {
-	SDR    string
-	Local  string
-	Public string
+	SDR   string
+	Local string
 }
 
 // ServerInfo holds the parsed output of the rcon "status" command.
@@ -52,9 +51,8 @@ type ServerInfo struct {
 // GameConnectAddress returns the best address to give to TF2 clients that want
 // to connect to the game server.
 //
-// The SourceTV/SDR address reported by status is preferred because it is the
-// server's own view of its public endpoint. Fallbacks are only used when the
-// server reports a placeholder such as ?.?.?.?:?.
+// The reported UDP/IP address from status is preferred. Fallbacks are only
+// used when the server reports a placeholder such as ?.?.?.?:?.
 func (i ServerInfo) GameConnectAddress() string {
 	if addressIsUsable(i.Address.SDR) {
 		return i.Address.SDR
@@ -251,13 +249,10 @@ func ParseStatus(status string) (ServerInfo, error) {
 			}
 
 		case strings.HasPrefix(line, "udp/ip"):
-			if m := regexp.MustCompile(`udp/ip\s*:\s*(\S+(?::\d+)?)\s*(?:\(local:\s*([^)]+)\))?\s*(?:\(public IP from Steam:\s*([^)]+)\))?`).FindStringSubmatch(line); len(m) > 1 {
+			if m := regexp.MustCompile(`udp/ip\s*:\s*(\S+(?::\d+)?)\s*(?:\(local:\s*([^)]+)\))?`).FindStringSubmatch(line); len(m) > 1 {
 				info.Address.SDR = m[1]
 				if len(m) > 2 {
 					info.Address.Local = m[2]
-				}
-				if len(m) > 3 {
-					info.Address.Public = m[3]
 				}
 			}
 

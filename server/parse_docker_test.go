@@ -31,9 +31,6 @@ edicts  : 416 used of 2048 max
 	if info.Address.Local != "" {
 		t.Errorf("local = %q, want empty", info.Address.Local)
 	}
-	if info.Address.Public != "91.77.160.217" {
-		t.Errorf("public = %q, want %q", info.Address.Public, "91.77.160.217")
-	}
 	if info.Map != "cp_badlands" {
 		t.Errorf("map = %q, want %q", info.Map, "cp_badlands")
 	}

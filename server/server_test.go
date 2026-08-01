@@ -25,9 +25,6 @@ func TestParseStatus(t *testing.T) {
 	if info.Address.Local != "0.0.0.0:27015" {
 		t.Errorf("address local = %q, want %q", info.Address.Local, "0.0.0.0:27015")
 	}
-	if info.Address.Public != "121.122.123.124" {
-		t.Errorf("address public = %q, want %q", info.Address.Public, "121.122.123.124")
-	}
 	if info.Map != "cp_badlands" {
 		t.Errorf("map = %q, want %q", info.Map, "cp_badlands")
 	}
