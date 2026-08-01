@@ -185,10 +185,10 @@ func (si *ServerInfo) updateConnectStrings(password string) {
 // omitting empty or unknown placeholders.
 func formatAddress(a rcon.Address, configured string) string {
 	parts := []string{}
-	if rcon.AddressIsUsable(a.SDR) {
-		parts = append(parts, fmt.Sprintf("IP: %s", a.SDR))
+	if rcon.AddressIsUsable(a.IP) {
+		parts = append(parts, fmt.Sprintf("IP: %s", a.IP))
 	}
-	if rcon.AddressIsUsable(configured) && configured != a.SDR {
+	if rcon.AddressIsUsable(configured) && configured != a.IP {
 		parts = append(parts, fmt.Sprintf("Local: %s", configured))
 	}
 	if len(parts) == 0 {

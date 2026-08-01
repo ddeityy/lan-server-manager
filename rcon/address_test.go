@@ -32,7 +32,7 @@ func TestGameConnectAddress(t *testing.T) {
 			name: "sdr preferred over configured",
 			info: ServerInfo{
 				ConfiguredAddress: "127.0.0.1:27015",
-				Address:           Address{SDR: "169.254.12.131:27776", Local: "0.0.0.0:27015"},
+				Address:           Address{IP: "169.254.12.131:27776", Local: "0.0.0.0:27015"},
 			},
 			want: "169.254.12.131:27776",
 		},
@@ -40,14 +40,14 @@ func TestGameConnectAddress(t *testing.T) {
 			name: "configured preferred over unusable status",
 			info: ServerInfo{
 				ConfiguredAddress: "127.0.0.1:27015",
-				Address:           Address{SDR: "?.?.?.?:?", Local: "0.0.0.0:27015"},
+				Address:           Address{IP: "?.?.?.?:?", Local: "0.0.0.0:27015"},
 			},
 			want: "127.0.0.1:27015",
 		},
 		{
 			name: "usable local falls back",
 			info: ServerInfo{
-				Address: Address{SDR: "?.?.?.?:?", Local: "192.168.1.5:27015"},
+				Address: Address{IP: "?.?.?.?:?", Local: "192.168.1.5:27015"},
 			},
 			want: "192.168.1.5:27015",
 		},

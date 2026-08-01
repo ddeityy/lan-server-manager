@@ -25,8 +25,8 @@ edicts  : 416 used of 2048 max
 	if info.Hostname != "MoscowLAN Server" {
 		t.Errorf("hostname = %q, want %q", info.Hostname, "MoscowLAN Server")
 	}
-	if info.Address.SDR != "?.?.?.?:?" {
-		t.Errorf("sdr = %q, want %q", info.Address.SDR, "?.?.?.?:?")
+	if info.Address.IP != "?.?.?.?:?" {
+		t.Errorf("sdr = %q, want %q", info.Address.IP, "?.?.?.?:?")
 	}
 	if info.Address.Local != "" {
 		t.Errorf("local = %q, want empty", info.Address.Local)
@@ -58,7 +58,7 @@ func TestRefreshFillsConfiguredAddress(t *testing.T) {
 	c := NewClient("127.0.0.1:27015", "test")
 	// Simulate a parsed status with unusable addresses.
 	c.lastInfo = ServerInfo{
-		Address:  Address{SDR: "?.?.?.?:?"},
+		Address:  Address{IP: "?.?.?.?:?"},
 		SourceTV: SourceTV{Address: "?.?.?.?:?", Local: "0.0.0.0:27020"},
 	}
 

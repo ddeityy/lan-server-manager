@@ -32,7 +32,7 @@ type SourceTV struct {
 // Address holds the addresses reported by the Source engine status command:
 // the reported UDP/IP endpoint and the local bind.
 type Address struct {
-	SDR   string
+	IP    string
 	Local string
 }
 
@@ -54,8 +54,8 @@ type ServerInfo struct {
 // The reported UDP/IP address from status is preferred. Fallbacks are only
 // used when the server reports a placeholder such as ?.?.?.?:?.
 func (i ServerInfo) GameConnectAddress() string {
-	if AddressIsUsable(i.Address.SDR) {
-		return i.Address.SDR
+	if AddressIsUsable(i.Address.IP) {
+		return i.Address.IP
 	}
 	if AddressIsUsable(i.Address.Local) {
 		return i.Address.Local
@@ -214,8 +214,8 @@ func (s *Client) Refresh() error {
 	info.ConfiguredAddress = s.address
 
 	// Fall back to the configured address if the server did not report a usable one.
-	if !AddressIsUsable(info.Address.SDR) {
-		info.Address.SDR = s.address
+	if !AddressIsUsable(info.Address.IP) {
+		info.Address.IP = s.address
 	}
 	if info.Address.Local == "" {
 		info.Address.Local = s.address
@@ -250,7 +250,7 @@ func ParseStatus(status string) (ServerInfo, error) {
 
 		case strings.HasPrefix(line, "udp/ip"):
 			if m := regexp.MustCompile(`udp/ip\s*:\s*(\S+(?::\d+)?)\s*(?:\(local:\s*([^)]+)\))?`).FindStringSubmatch(line); len(m) > 1 {
-				info.Address.SDR = m[1]
+				info.Address.IP = m[1]
 				if len(m) > 2 {
 					info.Address.Local = m[2]
 				}
