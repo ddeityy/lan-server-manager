@@ -18,43 +18,12 @@ type ServerPanel struct {
 	window fyne.Window
 	server *server.Server
 
-	lastInfo server.ServerInfo
+	connection *Connection
+	actions    *Actions
+	serverInfo *ServerInfo
+	players    *PlayerSection
 
-	addressEntry          *widget.Entry
-	passwordEntry         *widget.Entry
-	statusLabel           *widget.Label
-	actionsStatusLabel    *widget.Label
-	serverInfoStatusLabel *widget.Label
-	serverNameLabel       *widget.Label
-
-	autoRefreshCheck     *widget.Check
-	refreshIntervalEntry *widget.Entry
-
-	addressLabel      *widget.Label
-	sourceTVLabel     *widget.Label
-	mapLabel          *widget.Label
-	playersLabel      *widget.Label
-	connectLabel      *widget.Label
-	stvLabel          *widget.Label
-	copyConnectButton *widget.Button
-	copySTVButton     *widget.Button
-	playerList        *widget.List
-
-	connectButton        *widget.Button
-	disconnectButton     *widget.Button
-	refreshButton        *widget.Button
-	changeLevelButton    *widget.Button
-	changePasswordButton *widget.Button
-	execConfigButton     *widget.Button
-	customCommandButton  *widget.Button
-	kickAllButton        *widget.Button
-
-	mapSelect           *widget.Select
-	configSelect        *widget.Select
-	customCommandEntry  *widget.Entry
-	serverPasswordEntry *widget.Entry
-
-	playersAccordion *widget.Accordion
+	serverNameLabel *widget.Label
 
 	refreshMutex   sync.Mutex
 	refreshTicker  *time.Ticker
@@ -68,7 +37,32 @@ type ServerPanel struct {
 
 // NewServerPanel creates a new tab panel with default connection values.
 func NewServerPanel(window fyne.Window, title string, onTitleChanged, onChanged func()) *ServerPanel {
-	p := &ServerPanel{window: window, onTitleChanged: onTitleChanged, onChanged: onChanged}
+	p := &ServerPanel{
+		window:         window,
+		onTitleChanged: onTitleChanged,
+		onChanged:      onChanged,
+	}
+
+	p.connection = newConnection(p.connect, p.disconnect, p.notifyChanged)
+	p.actions = newActions(
+		p.changeServerPassword,
+		p.changeLevel,
+		p.execConfig,
+		p.sendCustomCommand,
+		p.handleMapSelected,
+		p.handleConfigSelected,
+		p.notifyChanged,
+	)
+	p.serverInfo = newServerInfo(
+		p.refresh,
+		p.copyConnectString,
+		p.copySTVString,
+		p.handleIntervalChanged,
+		p.handleAutoRefreshChanged,
+	)
+	p.players = newPlayerSection(p.confirmKickAll)
+	p.serverNameLabel = widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+
 	p.buildUI(title)
 	return p
 }
@@ -92,8 +86,11 @@ func (p *ServerPanel) notifyChanged() {
 	}
 }
 
-func (p *ServerPanel) handleMapSelected(value string) {
-	setMapSelection(p.mapSelect, value)
+func (p *ServerPanel) handleMapSelected() {
+	p.notifyChanged()
+}
+
+func (p *ServerPanel) handleConfigSelected() {
 	p.notifyChanged()
 }
 
@@ -101,7 +98,7 @@ func (p *ServerPanel) handleAutoRefreshChanged(checked bool) {
 	p.notifyChanged()
 
 	if checked {
-		p.refreshButton.Disable()
+		p.serverInfo.SetRefreshEnabled(false)
 		if p.server != nil {
 			p.startAutoRefresh()
 		}
@@ -110,6 +107,13 @@ func (p *ServerPanel) handleAutoRefreshChanged(checked bool) {
 
 	p.stopAutoRefresh()
 	if p.server != nil {
-		p.refreshButton.Enable()
+		p.serverInfo.SetRefreshEnabled(true)
 	}
+}
+
+func (p *ServerPanel) handleIntervalChanged() {
+	if !p.serverInfo.AutoRefreshEnabled() || p.server == nil {
+		return
+	}
+	p.startAutoRefresh()
 }

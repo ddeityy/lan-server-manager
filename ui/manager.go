@@ -56,8 +56,8 @@ func (m *Manager) loadTabs() {
 	if len(appConfig.Servers) > 0 {
 		for _, preset := range appConfig.Servers {
 			p := m.newPanel(m.nextTabTitle())
-			p.addressEntry.SetText(preset.Address)
-			p.passwordEntry.SetText(preset.RCONPassword)
+			p.connection.SetAddress(preset.Address)
+			p.connection.SetPassword(preset.RCONPassword)
 			m.panels = append(m.panels, p)
 		}
 
@@ -84,9 +84,9 @@ func (m *Manager) loadTabs() {
 
 	for _, t := range saved {
 		p := m.newPanel(m.nextTabTitle())
-		p.addressEntry.SetText(t.Address)
-		p.passwordEntry.SetText(t.Password)
-		setMapSelection(p.mapSelect, t.Map)
+		p.connection.SetAddress(t.Address)
+		p.connection.SetPassword(t.Password)
+		p.actions.SetMap(t.Map)
 		m.panels = append(m.panels, p)
 	}
 
@@ -104,9 +104,9 @@ func (m *Manager) saveTabs() {
 	saved := make([]savedServerTab, len(m.panels))
 	for i, p := range m.panels {
 		saved[i] = savedServerTab{
-			Address:  p.addressEntry.Text,
-			Password: p.passwordEntry.Text,
-			Map:      p.mapSelect.Selected,
+			Address:  p.connection.Address(),
+			Password: p.connection.Password(),
+			Map:      p.actions.SelectedMap(),
 		}
 	}
 

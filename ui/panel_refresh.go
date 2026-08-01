@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -10,27 +9,13 @@ import (
 	"lan-server-manager/server"
 )
 
-// parseRefreshInterval reads the interval entry, returning seconds.
-// Invalid or too-small values fall back to the default.
-func (p *ServerPanel) parseRefreshInterval() int {
-	s := p.refreshIntervalEntry.Text
-	if s == "" {
-		return defaultRefreshInterval
-	}
-	n, err := strconv.Atoi(s)
-	if err != nil || n < 1 {
-		return defaultRefreshInterval
-	}
-	return n
-}
-
 func (p *ServerPanel) startAutoRefresh() {
-	if p.server == nil || !p.autoRefreshCheck.Checked {
+	if p.server == nil || !p.serverInfo.AutoRefreshEnabled() {
 		return
 	}
 	p.stopAutoRefresh()
 
-	interval := time.Duration(p.parseRefreshInterval()) * time.Second
+	interval := time.Duration(p.serverInfo.RefreshInterval()) * time.Second
 	p.refreshTicker = time.NewTicker(interval)
 	p.refreshStop = make(chan struct{})
 
