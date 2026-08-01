@@ -166,8 +166,9 @@ func (m *Manager) closePanel(item *container.TabItem) {
 		return
 	}
 
-	m.rebuildTabs()
-	m.saveTabs()
+	// Let Fyne remove the tab itself rather than rebuilding the whole strip;
+	// this avoids stale tab button objects that can overlap.
+	m.tabs.Remove(item)
 
 	target := closedIndex
 	if target >= len(m.panels) {
@@ -179,4 +180,5 @@ func (m *Manager) closePanel(item *container.TabItem) {
 	m.tabs.SelectIndex(target)
 
 	m.updateTabCloseButtons()
+	m.saveTabs()
 }
