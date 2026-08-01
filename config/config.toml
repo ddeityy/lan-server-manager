@@ -18,22 +18,22 @@ configs = [
 # Default MoscowLAN servers loaded from msk-lan-compose.yml.
 # When [[servers]] entries are present, the app opens a tab for each and
 # connects automatically.
-[[servers]]
-address = "127.0.0.1:27015"
-rcon_password = "dsadsadsadsadsada"
-password = "test"
+# [[servers]]
+# address = "127.0.0.1:27015"
+# rcon_password = "dsadsadsadsadsada"
+# password = "test"
 
-[[servers]]
-address = "127.0.0.1:27025"
-rcon_password = "dsadsadsadsadsada"
-password = ""
+# [[servers]]
+# address = "127.0.0.1:27025"
+# rcon_password = "dsadsadsadsadsada"
+# password = ""
 
-[[servers]]
-address = "127.0.0.1:27035"
-rcon_password = "dsadsadsadsadsada"
-password = ""
+# [[servers]]
+# address = "127.0.0.1:27035"
+# rcon_password = "dsadsadsadsadsada"
+# password = ""
 
-[[servers]]
-address = "127.0.0.1:27045"
-rcon_password = "dsadsadsadsadsada"
-password = ""
+# [[servers]]
+# address = "127.0.0.1:27045"
+# rcon_password = "dsadsadsadsadsada"
+# password = ""
