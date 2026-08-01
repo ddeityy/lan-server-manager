@@ -43,7 +43,7 @@ func (p *ServerPanel) connect() {
 
 		fyne.Do(func() {
 			if err != nil {
-				p.statusLabel.SetText(fmt.Sprintf("Connection failed: %v", err))
+				p.statusLabel.SetText("Connection failed: " + formatError(err))
 				p.setConnected(false)
 				return
 			}
@@ -95,7 +95,7 @@ func (p *ServerPanel) kick(userid int) {
 
 		fyne.Do(func() {
 			if err != nil {
-				p.actionsStatusLabel.SetText(fmt.Sprintf("Kick failed: %v", err))
+				p.actionsStatusLabel.SetText("Kick failed: " + formatError(err))
 				return
 			}
 			p.actionsStatusLabel.SetText(fmt.Sprintf("Kicked player %d", userid))
@@ -152,7 +152,7 @@ func (p *ServerPanel) kickAll() {
 
 		fyne.Do(func() {
 			if lastErr != nil {
-				p.actionsStatusLabel.SetText(fmt.Sprintf("Kick all finished with errors: %v", lastErr))
+				p.actionsStatusLabel.SetText("Kick all finished with errors: " + formatError(lastErr))
 			} else {
 				p.actionsStatusLabel.SetText("Kicked all players")
 			}
@@ -183,7 +183,7 @@ func (p *ServerPanel) changeLevel() {
 		fyne.Do(func() {
 			p.changeLevelButton.Enable()
 			if err != nil {
-				p.actionsStatusLabel.SetText(fmt.Sprintf("Changelevel failed: %v", err))
+				p.actionsStatusLabel.SetText("Changelevel failed: " + formatError(err))
 				return
 			}
 			p.actionsStatusLabel.SetText("Changed level to " + mapName)
@@ -213,7 +213,7 @@ func (p *ServerPanel) changeServerPassword() {
 		fyne.Do(func() {
 			p.changePasswordButton.Enable()
 			if err != nil {
-				p.actionsStatusLabel.SetText(fmt.Sprintf("Set password failed: %v", err))
+				p.actionsStatusLabel.SetText("Set password failed: " + formatError(err))
 				return
 			}
 			p.updateConnectStrings()
@@ -244,7 +244,7 @@ func (p *ServerPanel) execConfig() {
 		fyne.Do(func() {
 			p.execConfigButton.Enable()
 			if err != nil {
-				p.actionsStatusLabel.SetText(fmt.Sprintf("Exec config failed: %v", err))
+				p.actionsStatusLabel.SetText("Exec config failed: " + formatError(err))
 				return
 			}
 			p.actionsStatusLabel.SetText("Executed config " + configName)
@@ -274,7 +274,7 @@ func (p *ServerPanel) sendCustomCommand() {
 		fyne.Do(func() {
 			p.customCommandButton.Enable()
 			if err != nil {
-				p.actionsStatusLabel.SetText(fmt.Sprintf("Command failed: %v", err))
+				p.actionsStatusLabel.SetText("Command failed: " + formatError(err))
 				return
 			}
 			p.actionsStatusLabel.SetText("Sent: " + cmd)
