@@ -16,6 +16,7 @@ func (p *ServerPanel) Disconnect() {
 		p.server = nil
 	}
 	p.setConnected(false)
+	p.statusLabel.SetText("Disconnected")
 	p.resetInfo()
 }
 
@@ -61,6 +62,7 @@ func (p *ServerPanel) disconnect() {
 
 	fyne.Do(func() {
 		p.setConnected(false)
+		p.statusLabel.SetText("Disconnected")
 		p.resetInfo()
 		p.updateTitle("Server")
 	})
@@ -241,6 +243,36 @@ func (p *ServerPanel) execConfig() {
 				return
 			}
 			p.actionsStatusLabel.SetText("Executed config " + configName)
+		})
+	}()
+}
+
+func (p *ServerPanel) sendCustomCommand() {
+	cmd := p.customCommandEntry.Text
+	if cmd == "" {
+		fyne.Do(func() { p.actionsStatusLabel.SetText("Enter a command first") })
+		return
+	}
+	if p.server == nil {
+		fyne.Do(func() { p.actionsStatusLabel.SetText("Not connected") })
+		return
+	}
+
+	fyne.Do(func() {
+		p.customCommandButton.Disable()
+		p.actionsStatusLabel.SetText("Sending: " + cmd)
+	})
+
+	go func() {
+		err := p.server.Execute(cmd)
+
+		fyne.Do(func() {
+			p.customCommandButton.Enable()
+			if err != nil {
+				p.actionsStatusLabel.SetText(fmt.Sprintf("Command failed: %v", err))
+				return
+			}
+			p.actionsStatusLabel.SetText("Sent: " + cmd)
 		})
 	}()
 }

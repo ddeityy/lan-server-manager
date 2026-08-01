@@ -15,12 +15,21 @@ configs = [
     "etf2l_6v6_koth",
 ]
 
-# Preload servers on startup. Each entry opens its own tab and connects
-# automatically.
-# [[servers]]
-# address = "127.0.0.1:27015"
-# rcon_password = "password 1"
+# Default MoscowLAN servers loaded from msk-lan-compose.yml.
+# When [[servers]] entries are present, the app opens a tab for each and
+# connects automatically.
+[[servers]]
+address = "127.0.0.1:27015"
+rcon_password = "dsadsadsadsadsada"
 
-# [[servers]]
-# address = "127.0.0.1:27016"
-# rcon_password = "password 2"
+[[servers]]
+address = "127.0.0.1:27025"
+rcon_password = "dsadsadsadsadsada"
+
+[[servers]]
+address = "127.0.0.1:27035"
+rcon_password = "dsadsadsadsadsada"
+
+[[servers]]
+address = "127.0.0.1:27045"
+rcon_password = "dsadsadsadsadsada"
