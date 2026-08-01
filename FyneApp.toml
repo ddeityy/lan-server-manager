@@ -1,0 +1,12 @@
+[Details]
+Icon = "static/moscow.jpg"
+Name = "Server manager"
+Version = "0.0.1"
+Build = 2
+
+[LinuxAndBSD]
+GenericName = "Server manager"
+Categories = ["Network"]
+
+[Migrations]
+fyneDo = true
