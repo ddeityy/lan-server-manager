@@ -7,7 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 
-	"lan-server-manager/server"
+	"lan-server-manager/rcon"
 )
 
 const defaultRefreshInterval = 1
@@ -15,7 +15,7 @@ const defaultRefreshInterval = 1
 // ServerPanel is the full UI for a single TF2 server connection.
 type ServerPanel struct {
 	window fyne.Window
-	server *server.Server
+	client *rcon.Client
 
 	connection *Connection
 	actions    *Actions
@@ -91,7 +91,7 @@ func (p *ServerPanel) handleConfigSelected() {
 }
 
 func (p *ServerPanel) handleIntervalChanged() {
-	if p.server == nil {
+	if p.client == nil {
 		return
 	}
 	p.startAutoRefresh()

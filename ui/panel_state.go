@@ -3,7 +3,7 @@ package ui
 import (
 	"fyne.io/fyne/v2"
 
-	"lan-server-manager/server"
+	"lan-server-manager/rcon"
 )
 
 func (p *ServerPanel) setConnected(connected bool) {
@@ -26,7 +26,7 @@ func (p *ServerPanel) resetInfo() {
 	p.players.Reset()
 }
 
-func (p *ServerPanel) updateInfo(info server.ServerInfo, err error) {
+func (p *ServerPanel) updateInfo(info rcon.ServerInfo, err error) {
 	if err != nil {
 		p.serverInfo.SetStatus("Refresh failed: " + formatError(err))
 		return

@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"net"
 	"strconv"
 	"strings"
 
@@ -11,7 +10,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"lan-server-manager/server"
+	"lan-server-manager/rcon"
 )
 
 // ServerInfo holds the widgets that display parsed status output and the
@@ -28,7 +27,7 @@ type ServerInfo struct {
 	refreshIntervalEntry *widget.Entry
 	statusLabel          *widget.Label
 
-	lastInfo server.ServerInfo
+	lastInfo rcon.ServerInfo
 }
 
 func newServerInfo(
@@ -103,7 +102,7 @@ func (si *ServerInfo) SetName(name string) { si.serverNameLabel.SetText(name) }
 
 // Reset clears all displayed server info and disables copy buttons.
 func (si *ServerInfo) Reset() {
-	si.lastInfo = server.ServerInfo{}
+	si.lastInfo = rcon.ServerInfo{}
 	si.serverNameLabel.SetText("")
 	si.addressLabel.SetText("")
 	si.mapLabel.SetText("")
@@ -130,14 +129,14 @@ func (si *ServerInfo) RefreshInterval() int {
 }
 
 // SetInfo updates the displayed server info and the copyable connect strings.
-func (si *ServerInfo) SetInfo(info server.ServerInfo, configuredAddress, password string) {
+func (si *ServerInfo) SetInfo(info rcon.ServerInfo, configuredAddress, password string) {
 	si.lastInfo = info
 
 	si.addressLabel.SetText(formatAddress(info.Address, configuredAddress))
 
 	if info.SourceTV.Address != "" {
 		tvText := fmt.Sprintf("%s, delay %s", info.SourceTV.Address, info.SourceTV.Delay)
-		if isAddressUsable(info.SourceTV.Local) {
+		if rcon.AddressIsUsable(info.SourceTV.Local) {
 			tvText += "\nlocal " + info.SourceTV.Local
 		}
 		si.sourceTVLabel.SetText(tvText)
@@ -151,7 +150,7 @@ func (si *ServerInfo) SetInfo(info server.ServerInfo, configuredAddress, passwor
 }
 
 // LastInfo returns the most recently displayed server information.
-func (si *ServerInfo) LastInfo() server.ServerInfo { return si.lastInfo }
+func (si *ServerInfo) LastInfo() rcon.ServerInfo { return si.lastInfo }
 
 // UpdateConnectStrings rebuilds connect and STV strings using the supplied
 // password.
@@ -167,11 +166,7 @@ func (si *ServerInfo) updateConnectStrings(password string) {
 		si.connectLabel.SetText("")
 		si.copyConnectButton.Disable()
 	} else {
-		connect := fmt.Sprintf("connect %s", gameAddr)
-		if password != "" {
-			connect += fmt.Sprintf("; password %s", password)
-		}
-		si.connectLabel.SetText(connect)
+		si.connectLabel.SetText(connectCommand(gameAddr, password))
 		si.copyConnectButton.Enable()
 	}
 
@@ -182,22 +177,18 @@ func (si *ServerInfo) updateConnectStrings(password string) {
 		return
 	}
 
-	stv := fmt.Sprintf("connect %s", stvAddr)
-	if password != "" {
-		stv += fmt.Sprintf("; password %s", password)
-	}
-	si.stvLabel.SetText(stv)
+	si.stvLabel.SetText(connectCommand(stvAddr, password))
 	si.copySTVButton.Enable()
 }
 
 // formatAddress returns a multi-line summary of the server's addresses,
 // omitting empty or unknown placeholders.
-func formatAddress(a server.Address, configured string) string {
+func formatAddress(a rcon.Address, configured string) string {
 	parts := []string{}
-	if isAddressUsable(a.SDR) {
+	if rcon.AddressIsUsable(a.SDR) {
 		parts = append(parts, fmt.Sprintf("IP: %s", a.SDR))
 	}
-	if isAddressUsable(configured) && configured != a.SDR {
+	if rcon.AddressIsUsable(configured) && configured != a.SDR {
 		parts = append(parts, fmt.Sprintf("Local: %s", configured))
 	}
 	if len(parts) == 0 {
@@ -206,15 +197,11 @@ func formatAddress(a server.Address, configured string) string {
 	return strings.Join(parts, "\n")
 }
 
-// isAddressUsable reports whether an address string is a real endpoint and not
-// an empty or unknown placeholder like "?.?.?.?:?" or "0.0.0.0:27015".
-func isAddressUsable(s string) bool {
-	if s == "" {
-		return false
+// connectCommand builds a TF2 connect command, optionally including a password.
+func connectCommand(address, password string) string {
+	cmd := fmt.Sprintf("connect %s", address)
+	if password != "" {
+		cmd += fmt.Sprintf("; password %s", password)
 	}
-	host, _, err := net.SplitHostPort(s)
-	if err != nil {
-		host = s
-	}
-	return host != "0.0.0.0" && !strings.Contains(host, "?")
+	return cmd
 }

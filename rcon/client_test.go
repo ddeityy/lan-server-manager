@@ -1,4 +1,4 @@
-package server
+package rcon
 
 import (
 	"os"

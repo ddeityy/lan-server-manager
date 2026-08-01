@@ -6,11 +6,11 @@ import (
 
 	"fyne.io/fyne/v2"
 
-	"lan-server-manager/server"
+	"lan-server-manager/rcon"
 )
 
 func (p *ServerPanel) startAutoRefresh() {
-	if p.server == nil {
+	if p.client == nil {
 		return
 	}
 	p.stopAutoRefresh()
@@ -45,15 +45,15 @@ func (p *ServerPanel) stopAutoRefresh() {
 
 // doRefresh performs a synchronous status refresh. It serializes access to the
 // server so manual and automatic refreshes cannot overlap.
-func (p *ServerPanel) doRefresh() (server.ServerInfo, error) {
+func (p *ServerPanel) doRefresh() (rcon.ServerInfo, error) {
 	p.refreshMutex.Lock()
 	defer p.refreshMutex.Unlock()
 
-	if p.server == nil {
-		return server.ServerInfo{}, fmt.Errorf("not connected")
+	if p.client == nil {
+		return rcon.ServerInfo{}, fmt.Errorf("not connected")
 	}
-	if err := p.server.Refresh(); err != nil {
-		return server.ServerInfo{}, err
+	if err := p.client.Refresh(); err != nil {
+		return rcon.ServerInfo{}, err
 	}
-	return p.server.Info(), nil
+	return p.client.Info(), nil
 }
