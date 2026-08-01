@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
@@ -192,6 +193,10 @@ func (p *ServerPanel) changeLevel() {
 
 func (p *ServerPanel) changeServerPassword() {
 	password := p.serverPasswordEntry.Text
+	if strings.TrimSpace(password) == "" {
+		fyne.Do(func() { p.actionsStatusLabel.SetText("Enter a password first") })
+		return
+	}
 	if p.server == nil {
 		fyne.Do(func() { p.actionsStatusLabel.SetText("Not connected") })
 		return
@@ -248,7 +253,7 @@ func (p *ServerPanel) execConfig() {
 }
 
 func (p *ServerPanel) sendCustomCommand() {
-	cmd := p.customCommandEntry.Text
+	cmd := strings.TrimSpace(p.customCommandEntry.Text)
 	if cmd == "" {
 		fyne.Do(func() { p.actionsStatusLabel.SetText("Enter a command first") })
 		return

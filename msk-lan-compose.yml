@@ -6,98 +6,93 @@ services:
     image: ghcr.io/melkortf/tf2-competitive
     restart: always
     environment:
-      - SERVER_HOSTNAME="MoscowLAN Server #1"
+      - SERVER_HOSTNAME="MoscowLAN Server №1"
       - PORT=27015
       - CLIENT_PORT=27016
       - STEAM_PORT=27018
       - STV_PORT=27020
       - RCON_PASSWORD=dsadsadsadsadsada
-      - DEMOS_TF_APIKEY = 
-      - LOGS_TF_APIKEY =
+      - DEMOS_TF_APIKEY=
+      - LOGS_TF_APIKEY=
+      - ENABLE_FAKE_IP=1
 
     ports:
       - "27015:27015"
       - "27016:27016"
       - "27020:27020"
-    networks:
-      - tf2_servers
+    network_mode: host
 
-  # Server 2
-  MskLanSrv2:
-    image: ghcr.io/melkortf/tf2-competitive
-    restart: always
-    environment:
-      - SERVER_HOSTNAME="MoscowLAN Server #2"
-      - PORT=27025
-      - CLIENT_PORT=27026
-      - STEAM_PORT=27028
-      - STV_PORT=27030
-      - RCON_PASSWORD=dsadsadsadsadsada
-      - DEMOS_TF_APIKEY = 
-      - LOGS_TF_APIKEY =
+  # # Server 2
+  # MskLanSrv2:
+  #   image: ghcr.io/melkortf/tf2-competitive
+  #   restart: always
+  #   environment:
+  #     - SERVER_HOSTNAME="MoscowLAN Server №2"
+  #     - PORT=27025
+  #     - CLIENT_PORT=27026
+  #     - STEAM_PORT=27028
+  #     - STV_PORT=27030
+  #     - RCON_PASSWORD=dsadsadsadsadsada
+  #     - DEMOS_TF_APIKEY=
+  #     - LOGS_TF_APIKEY=
+  #     - ENABLE_FAKE_IP=1
 
-    ports:
-      - "27025:27025"
-      - "27026:27026"
-      - "27028:27028"
-      - "27030:27030"
-    networks:
-      - tf2_servers
-
-
-  # Server 3
-  MskLanSrv3:
-    image: ghcr.io/melkortf/tf2-competitive
-    restart: always
-    environment:
-      - SERVER_HOSTNAME="MoscowLAN Server #2"
-      - PORT=27035
-      - CLIENT_PORT=27036
-      - STEAM_PORT=27038
-      - STV_PORT=27040
-      - RCON_PASSWORD=dsadsadsadsadsada
-      - DEMOS_TF_APIKEY = 
-      - LOGS_TF_APIKEY =
-
-    ports:
-      - "27035:27035"
-      - "27036:27036"
-      - "27038:27038"
-      - "27040:27040"
-    networks:
-      - tf2_servers
+  #   ports:
+  #     - "27025:27025"
+  #     - "27026:27026"
+  #     - "27028:27028"
+  #     - "27030:27030"
+  #   network_mode: host
 
 
-  # MGE Server
-  MskLanMGE:
-    image: ghcr.io/melkortf/tf2-mge
-    restart: always
-    environment:
-      - SERVER_HOSTNAME="MoscowMGE"
-      - PORT=27045
-      - CLIENT_PORT=27046
-      - STEAM_PORT=27048
-      - STV_PORT=27050
-      - RCON_PASSWORD=dsadsadsadsadsada
+  # # Server 3
+  # MskLanSrv3:
+  #   image: ghcr.io/melkortf/tf2-competitive
+  #   restart: always
+  #   environment:
+  #     - SERVER_HOSTNAME="MoscowLAN Server №3"
+  #     - PORT=27035
+  #     - CLIENT_PORT=27036
+  #     - STEAM_PORT=27038
+  #     - STV_PORT=27040
+  #     - RCON_PASSWORD=dsadsadsadsadsada
+  #     - DEMOS_TF_APIKEY=
+  #     - LOGS_TF_APIKEY=
+  #     - ENABLE_FAKE_IP=1
 
-    ports:
-      - "27045:27045"
-      - "27036:27046"
-      - "27038:27048"
-      - "27040:27040"
-    networks:
-      - tf2_servers
+  #   ports:
+  #     - "27035:27035"
+  #     - "27036:27036"
+  #     - "27038:27038"
+  #     - "27040:27040"
+  #   network_mode: host
 
-  mumble-server:
-    image: mumblevoip/mumble-server:latest
-    container_name: mumble-server
-    hostname: mumble-server
-    restart: on-failure
-    ports:
-      - 64738:64738
-      - 64738:64738/udp
-    networks:
-      - tf2_servers
-      
-networks:
-  tf2_servers:
+
+  # # MGE Server
+  # MskLanMGE:
+  #   image: ghcr.io/melkortf/tf2-mge
+  #   restart: always
+  #   environment:
+  #     - SERVER_HOSTNAME="MoscowMGE"
+  #     - PORT=27045
+  #     - CLIENT_PORT=27046
+  #     - STEAM_PORT=27048
+  #     - STV_PORT=27050
+  #     - RCON_PASSWORD=dsadsadsadsadsada
+  #     - ENABLE_FAKE_IP=1
+
+  #   ports:
+  #     - "27045:27045"
+  #     - "27036:27046"
+  #     - "27038:27048"
+  #     - "27040:27040"
+  #   network_mode: host
+
+  # mumble-server:
+  #   image: mumblevoip/mumble-server:latest
+  #   container_name: mumble-server
+  #   hostname: mumble-server
+  #   restart: on-failure
+  #   ports:
+  #     - 64738:64738
+  #     - 64738:64738/udp
