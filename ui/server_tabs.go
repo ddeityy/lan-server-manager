@@ -10,9 +10,12 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// ServerTabs is a custom tab bar that renders server tabs plus a "+" tab.
-// Unlike container.DocTabs it does not add an overflow menu or force every
-// tab to be closable, so no reflection or unsafe code is required.
+/*
+ServerTabs is a custom tab bar that renders server tabs plus a "+" tab.
+
+Unlike container.DocTabs it does not add an overflow menu or force every
+tab to be closable, so no reflection or unsafe code is required.
+*/
 type ServerTabs struct {
 	widget.BaseWidget
 
@@ -189,9 +192,12 @@ func (r *serverTabsRenderer) updateBar() {
 	r.bar.Refresh()
 }
 
-// tabButton renders a single tab in the tab bar. It is backed by a standard
-// widget.Button so hover/focus effects work reliably, with a custom label,
-// selection indicator, and optional close button layered on top.
+/*
+tabButton renders a single tab in the tab bar.
+
+It is backed by a standard widget.Button so hover/focus effects work reliably,
+with a custom label, selection indicator, and optional close button layered on top.
+*/
 type tabButton struct {
 	widget.BaseWidget
 

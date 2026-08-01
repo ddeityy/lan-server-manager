@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"net"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,7 +18,7 @@ import (
 	"lan-server-manager/server"
 )
 
-const defaultRefreshInterval = 10
+const defaultRefreshInterval = 1
 
 func mapList() []string {
 	if len(appConfig.Maps) > 0 {
@@ -33,8 +34,41 @@ func configList() []string {
 	return config.Default().Configs
 }
 
-func longestMapName() string {
-	return appConfig.LongestName(mapList())
+const actionRowGap = float32(8)
+
+// actionRowLayout sizes two children in a 3:1 ratio (75% input / 25% button)
+// with a small gap between them.
+type actionRowLayout struct{}
+
+func (l *actionRowLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	if len(objects) != 2 {
+		return
+	}
+	available := size.Width - actionRowGap
+	leftW := available * 0.75
+	rightW := available * 0.25
+	objects[0].Move(fyne.NewPos(0, 0))
+	objects[0].Resize(fyne.NewSize(leftW, size.Height))
+	objects[1].Move(fyne.NewPos(leftW+actionRowGap, 0))
+	objects[1].Resize(fyne.NewSize(rightW, size.Height))
+}
+
+func (l *actionRowLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	var h, totalW float32
+	for i, obj := range objects {
+		if mh := obj.MinSize().Height; mh > h {
+			h = mh
+		}
+		totalW += obj.MinSize().Width
+		if i < len(objects)-1 {
+			totalW += actionRowGap
+		}
+	}
+	return fyne.NewSize(totalW, h)
+}
+
+func newActionRow(left, right fyne.CanvasObject) *fyne.Container {
+	return container.New(&actionRowLayout{}, left, right)
 }
 
 // setMapSelection sets the map dropdown's current value and renders the
@@ -135,14 +169,18 @@ func (p *ServerPanel) buildUI(title string) {
 	p.serverPasswordEntry.OnChanged = func(string) { p.notifyChanged() }
 
 	p.autoRefreshCheck = widget.NewCheck("Auto refresh", p.handleAutoRefreshChanged)
+	p.autoRefreshCheck.Checked = true
+	p.autoRefreshCheck.Refresh()
 
 	p.refreshIntervalEntry = widget.NewEntry()
 	p.refreshIntervalEntry.SetText(fmt.Sprintf("%d", defaultRefreshInterval))
-	p.refreshIntervalEntry.OnSubmitted = func(string) {
+	restartAutoRefresh := func(string) {
 		if p.autoRefreshCheck.Checked {
 			p.startAutoRefresh()
 		}
 	}
+	p.refreshIntervalEntry.OnSubmitted = restartAutoRefresh
+	p.refreshIntervalEntry.OnChanged = restartAutoRefresh
 
 	p.statusLabel = widget.NewLabel("")
 	p.actionsStatusLabel = widget.NewLabel("")
@@ -157,26 +195,12 @@ func (p *ServerPanel) buildUI(title string) {
 	p.stvLabel = widget.NewLabelWithStyle("-", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
 	// Player list.
-	p.playerList = widget.NewList(
-		func() int { return 0 },
-		func() fyne.CanvasObject {
-			return container.NewHBox(
-				widget.NewLabel("ID"),
-				widget.NewLabel("Name"),
-				widget.NewLabel("UniqueID"),
-				widget.NewLabel("Conn"),
-				widget.NewLabel("Ping"),
-				widget.NewLabel("Loss"),
-				widget.NewLabel("State"),
-				widget.NewButton("Kick", nil),
-			)
-		},
-		func(_ widget.ListItemID, _ fyne.CanvasObject) {},
-	)
+	p.playerList = newPlayerList()
 
 	p.playersAccordion = widget.NewAccordion(
-		widget.NewAccordionItem("Players", p.playerList),
+		widget.NewAccordionItem("Players", container.NewBorder(playerHeader(), nil, nil, nil, p.playerList)),
 	)
+	p.playersAccordion.Open(0)
 
 	// Buttons.
 	p.disconnectButton = widget.NewButton("Disconnect", func() { p.disconnect() })
@@ -189,17 +213,10 @@ func (p *ServerPanel) buildUI(title string) {
 
 	p.mapSelect = widget.NewSelect(mapList(), p.handleMapSelected)
 	setMapSelection(p.mapSelect, mapList()[0])
-	p.mapSelect.PlaceHolder = longestMapName()
-
-	p.changeLevelButton = widget.NewButton("Change map", func() { p.changeLevel() })
-	p.changeLevelButton.Disable()
 
 	p.configSelect = widget.NewSelect(configList(), func(string) { p.notifyChanged() })
 	p.configSelect.SetSelected(configList()[0])
-	// Size the config dropdown to match the map dropdown so the action rows
-	// line up. The placeholder only affects min-width; the selected config is
-	// still displayed.
-	p.configSelect.PlaceHolder = longestMapName()
+
 	p.changeLevelButton = widget.NewButton("Send", func() { p.changeLevel() })
 	p.changeLevelButton.Disable()
 
@@ -235,13 +252,13 @@ func (p *ServerPanel) buildUI(title string) {
 
 	actionBox := container.NewVBox(
 		widget.NewLabelWithStyle("Change server password", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		container.NewGridWithColumns(2, p.serverPasswordEntry, p.changePasswordButton),
+		newActionRow(p.serverPasswordEntry, p.changePasswordButton),
 		widget.NewLabelWithStyle("Change map", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		container.NewGridWithColumns(2, p.mapSelect, p.changeLevelButton),
+		newActionRow(p.mapSelect, p.changeLevelButton),
 		widget.NewLabelWithStyle("Exec config", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		container.NewGridWithColumns(2, p.configSelect, p.execConfigButton),
+		newActionRow(p.configSelect, p.execConfigButton),
 		widget.NewLabelWithStyle("Custom command", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		container.NewGridWithColumns(2, p.customCommandEntry, p.customCommandButton),
+		newActionRow(p.customCommandEntry, p.customCommandButton),
 		p.actionsStatusLabel,
 	)
 
@@ -332,6 +349,7 @@ func (p *ServerPanel) setConnected(connected bool) {
 		}
 		p.changePasswordButton.Enable()
 		p.execConfigButton.Enable()
+		p.customCommandButton.Enable()
 		p.kickAllButton.Enable()
 		p.statusLabel.SetText("Connected")
 		p.pendingMapSync = true
@@ -378,10 +396,10 @@ func (p *ServerPanel) updateInfo(info server.ServerInfo, err error) {
 
 	p.lastInfo = info
 
-	p.addressLabel.SetText(formatAddress(info.Address))
+	p.addressLabel.SetText(formatAddress(info.Address, info.ConfiguredAddress))
 	if info.SourceTV.Address != "" {
-		tvText := fmt.Sprintf("%s (%s)", info.SourceTV.Address, info.SourceTV.Delay)
-		if info.SourceTV.Local != "" {
+		tvText := fmt.Sprintf("%s, delay %s", info.SourceTV.Address, info.SourceTV.Delay)
+		if isAddressUsable(info.SourceTV.Local) {
 			tvText += "\nlocal " + info.SourceTV.Local
 		}
 		p.sourceTVLabel.SetText(tvText)
@@ -403,23 +421,7 @@ func (p *ServerPanel) updateInfo(info server.ServerInfo, err error) {
 		p.updateTitle(info.Hostname)
 	}
 
-	p.playerList.Length = func() int { return len(info.Players) }
-	p.playerList.UpdateItem = func(i widget.ListItemID, o fyne.CanvasObject) {
-		player := info.Players[i]
-		row := o.(*fyne.Container)
-		row.Objects[0].(*widget.Label).SetText(fmt.Sprintf("%d", player.UserID))
-		row.Objects[1].(*widget.Label).SetText(player.Name)
-		row.Objects[2].(*widget.Label).SetText(player.UniqueID)
-		row.Objects[3].(*widget.Label).SetText(player.Connected)
-		row.Objects[4].(*widget.Label).SetText(fmt.Sprintf("%d", player.Ping))
-		row.Objects[5].(*widget.Label).SetText(fmt.Sprintf("%d", player.Loss))
-		row.Objects[6].(*widget.Label).SetText(player.State)
-		btn := row.Objects[7].(*widget.Button)
-		btn.SetText("Kick")
-		btn.OnTapped = func() { p.kick(player.UserID) }
-		btn.Enable()
-	}
-	p.playerList.Refresh()
+	updatePlayerList(p.playerList, info.Players, p.kick)
 
 	p.playersAccordion.Items[0].Title = fmt.Sprintf("Players (%d)", len(info.Players))
 	p.playersAccordion.Refresh()
@@ -435,12 +437,7 @@ func (p *ServerPanel) updateInfo(info server.ServerInfo, err error) {
 // updateConnectStrings rebuilds the connect and stv copy strings from the
 // current server info and password entry.
 func (p *ServerPanel) updateConnectStrings() {
-	addr := p.lastInfo.Address
-	gameAddr := addr.Local
-	if gameAddr == "" {
-		gameAddr = addr.SDR
-	}
-
+	gameAddr := p.lastInfo.GameConnectAddress()
 	if gameAddr == "" {
 		p.connectLabel.SetText("-")
 		p.stvLabel.SetText("-")
@@ -454,34 +451,52 @@ func (p *ServerPanel) updateConnectStrings() {
 	}
 	p.connectLabel.SetText(connect)
 
-	stv := fmt.Sprintf("connect %s", p.lastInfo.SourceTV.Address)
+	stvAddr := p.lastInfo.STVConnectAddress()
+	if stvAddr == "" {
+		p.stvLabel.SetText("-")
+		return
+	}
+
+	stv := fmt.Sprintf("connect %s", stvAddr)
 	if password != "" {
 		stv += fmt.Sprintf("; password %s", password)
-	}
-	if p.lastInfo.SourceTV.Address == "" {
-		stv = "-"
 	}
 	p.stvLabel.SetText(stv)
 }
 
 // formatAddress returns a multi-line summary of the server's addresses for the
-// Address info tile.
-func formatAddress(a server.Address) string {
-	if a.SDR == "" && a.Local == "" && a.Public == "" {
-		return "-"
-	}
-
+// Address info tile, omitting empty or unknown placeholders.
+func formatAddress(a server.Address, configured string) string {
 	parts := []string{}
-	if a.SDR != "" {
+	if isAddressUsable(a.SDR) {
 		parts = append(parts, fmt.Sprintf("SDR: %s", a.SDR))
 	}
-	if a.Local != "" {
+	if isAddressUsable(a.Local) && a.Local != configured {
 		parts = append(parts, fmt.Sprintf("Local: %s", a.Local))
 	}
-	if a.Public != "" {
+	if isAddressUsable(configured) && configured != a.SDR {
+		parts = append(parts, fmt.Sprintf("Connect: %s", configured))
+	}
+	if isAddressUsable(a.Public) {
 		parts = append(parts, fmt.Sprintf("Public: %s", a.Public))
 	}
+	if len(parts) == 0 {
+		return "-"
+	}
 	return strings.Join(parts, "\n")
+}
+
+// isAddressUsable reports whether an address string is a real endpoint and not
+// an empty or unknown placeholder like "?.?.?.?:?" or "0.0.0.0:27015".
+func isAddressUsable(s string) bool {
+	if s == "" {
+		return false
+	}
+	host, _, err := net.SplitHostPort(s)
+	if err != nil {
+		host = s
+	}
+	return host != "0.0.0.0" && !strings.Contains(host, "?")
 }
 
 func (p *ServerPanel) copyConnectString() {

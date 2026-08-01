@@ -61,15 +61,3 @@ func LoadBytes(data []byte) (Config, error) {
 
 	return c, nil
 }
-
-// LongestName returns the longest string in the given list for sizing a
-// dropdown placeholder.
-func (c Config) LongestName(list []string) string {
-	longest := ""
-	for _, m := range list {
-		if len(m) > len(longest) {
-			longest = m
-		}
-	}
-	return longest
-}

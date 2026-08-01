@@ -1,13 +1,13 @@
-hostname: test
+hostname: "MoscowLAN Server №1"
 version : 10828683/24 10828683 secure
-udp/ip  : 169.254.77.194:47656  (local: 0.0.0.0:27015)  (public IP from Steam: 91.77.160.217)
-steamid : [A:1:1001892886:50758] (90289997499313174)
+udp/ip  : 169.254.12.131:27776  (local: 0.0.0.0:27015)  (public IP from Steam: 121.122.123.124)
+steamid : [A:1:833904662:50768] (90290040280997910)
 account : not logged in  (No account specified)
 map     : cp_badlands at: 0 x, 0 y, 0 z
-tags    : cp,nocrits
-sourcetv:  169.254.77.194:47656, delay 90.0s  (local: 0.0.0.0:27020)
+tags    : cp
+sourcetv:  169.254.12.131:27776, delay 30.0s  (local: 0.0.0.0:27020)
 players : 1 humans, 1 bots (25 max)
-edicts  : 416 used of 2048 max
+edicts  : 418 used of 2048 max
 # userid name                uniqueid            connected ping loss state  adr
-#      2 "test TV"           BOT                                     active
-#      3 "Deity. #NextYear"  [U:1:115754284]     00:06       61   22 active loopback
+#      2 "Source TV"         BOT                                     active
+#      3 "Deity. #NextYear"  [U:1:115754284]     00:37       74    0 active 169.254.254.59:28360

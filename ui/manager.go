@@ -11,9 +11,6 @@ import (
 	"lan-server-manager/config"
 )
 
-// plusTabLabel is the label shown on the add-server tab.
-const plusTabLabel = "＋"
-
 // savedServerTab stores one saved tab's connection details.
 type savedServerTab struct {
 	Address  string `json:"address"`
@@ -48,8 +45,7 @@ func (m *Manager) buildUI() {
 	m.tabs = NewServerTabs(nil, m.handleTabClose, m.addPanel)
 
 	// The "+" tab sits after the rightmost active tab and opens a new server tab.
-	// The full-width plus (U+FF0B) renders larger than a regular '+' in most fonts.
-	m.plusTab = container.NewTabItem(plusTabLabel, widget.NewLabel("Click + to add a server"))
+	m.plusTab = container.NewTabItem("＋", widget.NewLabel("Click + to add a server"))
 
 	m.loadTabs()
 }
@@ -156,7 +152,6 @@ func (m *Manager) handleTabClose(item *container.TabItem) {
 	if item == m.plusTab {
 		return
 	}
-	// The last remaining server tab cannot be closed.
 	if len(m.panels) <= 1 {
 		return
 	}
@@ -178,8 +173,6 @@ func (m *Manager) closePanel(item *container.TabItem) {
 		return
 	}
 
-	// Let Fyne remove the tab itself rather than rebuilding the whole strip;
-	// this avoids stale tab button objects that can overlap.
 	m.tabs.Remove(item)
 
 	target := closedIndex
