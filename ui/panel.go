@@ -138,11 +138,10 @@ func (p *ServerPanel) buildUI(title string) {
 
 	p.statusLabel = widget.NewLabel("")
 
-	serverSectionLabel := widget.NewLabelWithStyle("Server", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	p.addressLabel = widget.NewLabel("Address: -")
-	p.sourceTVLabel = widget.NewLabel("SourceTV: -")
-	p.mapLabel = widget.NewLabel("Map: -")
-	p.playersLabel = widget.NewLabel("Players: -")
+	p.addressLabel = widget.NewLabelWithStyle("-", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	p.sourceTVLabel = widget.NewLabelWithStyle("-", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	p.mapLabel = widget.NewLabelWithStyle("-", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	p.playersLabel = widget.NewLabelWithStyle("-", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
 	// Player list.
 	p.playerList = widget.NewList(
@@ -182,9 +181,6 @@ func (p *ServerPanel) buildUI(title string) {
 	p.kickAllButton = widget.NewButton("Kick All Players", func() { p.confirmKickAll() })
 	p.kickAllButton.Disable()
 
-	connectionBar := container.NewHBox(p.connectButton)
-	actionBar := container.NewHBox(p.mapSelect, p.changeLevelButton)
-
 	p.refreshIntervalEntry.SetPlaceHolder("seconds")
 	autoRefreshRow := container.NewHBox(
 		p.autoRefreshCheck,
@@ -192,30 +188,40 @@ func (p *ServerPanel) buildUI(title string) {
 		p.refreshIntervalEntry,
 	)
 
-	form := container.NewVBox(
-		connectionBar,
+	connectionBox := container.NewVBox(
 		widget.NewForm(
-			widget.NewFormItem("Address   ", p.addressEntry),
+			widget.NewFormItem("Address  ", p.addressEntry),
 			widget.NewFormItem("Password", p.passwordEntry),
 		),
-		actionBar,
+		container.NewHBox(p.connectButton, p.disconnectButton),
 		p.statusLabel,
+	)
+
+	actionBox := container.NewVBox(
+		container.NewHBox(p.mapSelect, p.changeLevelButton),
 		autoRefreshRow,
 	)
 
-	serverHeader := container.NewHBox(serverSectionLabel, p.refreshButton)
-
-	serverCard := container.NewVBox(
-		serverHeader,
-		p.addressLabel,
-		p.sourceTVLabel,
-		p.mapLabel,
-		p.playersLabel,
-		p.kickAllButton,
-		p.playersAccordion,
+	sidebar := container.NewVBox(
+		widget.NewCard("Connection", "", connectionBox),
+		widget.NewCard("Actions", "", actionBox),
 	)
 
-	content := container.NewBorder(form, nil, nil, nil, serverCard)
+	addressTile := widget.NewCard("Address", "", p.addressLabel)
+	mapTile := widget.NewCard("Map", "", p.mapLabel)
+	playersTile := widget.NewCard("Players", "", p.playersLabel)
+	sourceTVTile := widget.NewCard("SourceTV", "", p.sourceTVLabel)
+
+	serverInfoCard := widget.NewCard("Server Info", "", container.NewVBox(
+		p.refreshButton,
+		container.NewGridWithColumns(2, mapTile, playersTile),
+		container.NewGridWithColumns(2, addressTile, sourceTVTile),
+	))
+
+	topRow := container.NewBorder(nil, nil, sidebar, nil, serverInfoCard)
+	bottomRow := container.NewBorder(p.kickAllButton, nil, nil, nil, p.playersAccordion)
+
+	content := container.NewBorder(topRow, nil, nil, nil, bottomRow)
 	p.tabItem = container.NewTabItem(title, content)
 }
 
@@ -263,10 +269,10 @@ func (p *ServerPanel) setConnected(connected bool) {
 func (p *ServerPanel) resetInfo() {
 	p.lastInfo = server.ServerInfo{}
 
-	p.addressLabel.SetText("Address: -")
-	p.mapLabel.SetText("Map: -")
-	p.playersLabel.SetText("Players: -")
-	p.sourceTVLabel.SetText("SourceTV: -")
+	p.addressLabel.SetText("-")
+	p.mapLabel.SetText("-")
+	p.playersLabel.SetText("-")
+	p.sourceTVLabel.SetText("-")
 
 	p.playerList.Length = func() int { return 0 }
 	p.playerList.UpdateItem = func(_ widget.ListItemID, _ fyne.CanvasObject) {}
@@ -284,18 +290,18 @@ func (p *ServerPanel) updateInfo(info server.ServerInfo, err error) {
 
 	p.lastInfo = info
 
-	p.addressLabel.SetText("Address: " + info.Address)
+	p.addressLabel.SetText(info.Address)
 	if info.SourceTV.Address != "" {
-		tvText := fmt.Sprintf("SourceTV: %s (%s)", info.SourceTV.Address, info.SourceTV.Delay)
+		tvText := fmt.Sprintf("%s (%s)", info.SourceTV.Address, info.SourceTV.Delay)
 		if info.SourceTV.Local != "" {
-			tvText += " local " + info.SourceTV.Local
+			tvText += "\nlocal " + info.SourceTV.Local
 		}
 		p.sourceTVLabel.SetText(tvText)
 	} else {
-		p.sourceTVLabel.SetText("SourceTV: -")
+		p.sourceTVLabel.SetText("-")
 	}
-	p.mapLabel.SetText("Map: " + info.Map)
-	p.playersLabel.SetText(fmt.Sprintf("Players: %d / %d", info.HumanPlayers, info.MaxPlayers))
+	p.mapLabel.SetText(info.Map)
+	p.playersLabel.SetText(fmt.Sprintf("%d / %d", info.HumanPlayers, info.MaxPlayers))
 
 	if p.pendingMapSync {
 		p.pendingMapSync = false

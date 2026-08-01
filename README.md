@@ -58,6 +58,19 @@ Then connect the app to `127.0.0.1:27015` with the matching password.
 go build -o server-manager .
 ```
 
+## Lint
+
+```sh
+make lint
+```
+
+This runs, in order:
+
+- `gofmt -w .`
+- `go run golang.org/x/tools/go/analysis/passes/modernize/cmd/modernize@latest -fix ./...`
+- `go vet ./...`
+- `golangci-lint run ./...`
+
 ## Package
 
 ```sh

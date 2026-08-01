@@ -42,7 +42,7 @@ func (m *Manager) Content() fyne.CanvasObject {
 }
 
 func (m *Manager) buildUI() {
-	m.tabs = NewServerTabs(m.handleTabSelected, m.handleTabClose, m.addPanel)
+	m.tabs = NewServerTabs(nil, m.handleTabClose, m.addPanel)
 
 	// The "+" tab sits after the rightmost active tab and opens a new server tab.
 	// The full-width plus (U+FF0B) renders larger than a regular '+' in most fonts.
@@ -129,12 +129,6 @@ func (m *Manager) newPanel(title string) *ServerPanel {
 func (m *Manager) nextTabTitle() string {
 	m.tabCounter++
 	return fmt.Sprintf("Server %d", m.tabCounter)
-}
-
-func (m *Manager) handleTabSelected(item *container.TabItem) {
-	if item == m.plusTab {
-		m.addPanel()
-	}
 }
 
 func (m *Manager) handleTabClose(item *container.TabItem) {
