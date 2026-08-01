@@ -136,7 +136,7 @@ func (si *ServerInfo) SetInfo(info rcon.ServerInfo, configuredAddress, password 
 
 	if info.SourceTV.Address != "" {
 		tvText := fmt.Sprintf("%s, delay %s", info.SourceTV.Address, info.SourceTV.Delay)
-		if rcon.AddressIsUsable(info.SourceTV.Local) {
+		if rcon.AddressIsValid(info.SourceTV.Local) {
 			tvText += "\nlocal " + info.SourceTV.Local
 		}
 		si.sourceTVLabel.SetText(tvText)
@@ -185,10 +185,10 @@ func (si *ServerInfo) updateConnectStrings(password string) {
 // omitting empty or unknown placeholders.
 func formatAddress(a rcon.Address, configured string) string {
 	parts := []string{}
-	if rcon.AddressIsUsable(a.IP) {
+	if rcon.AddressIsValid(a.IP) {
 		parts = append(parts, fmt.Sprintf("IP: %s", a.IP))
 	}
-	if rcon.AddressIsUsable(configured) && configured != a.IP {
+	if rcon.AddressIsValid(configured) && configured != a.IP {
 		parts = append(parts, fmt.Sprintf("Local: %s", configured))
 	}
 	if len(parts) == 0 {

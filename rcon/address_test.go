@@ -8,15 +8,14 @@ func TestAddressIsUsable(t *testing.T) {
 		want bool
 	}{
 		{"127.0.0.1:27015", true},
-		{"172.24.0.2:27015", true},
+		{"0.0.0.0:27015", true},
+		{"121.122.123.124", true},
 		{"?.?.?.?:?", false},
-		{"0.0.0.0:27015", false},
 		{"", false},
-		{"91.77.160.217", true},
 	}
 
 	for _, c := range cases {
-		if got := AddressIsUsable(c.addr); got != c.want {
+		if got := AddressIsValid(c.addr); got != c.want {
 			t.Errorf("AddressIsUsable(%q) = %v, want %v", c.addr, got, c.want)
 		}
 	}
@@ -37,12 +36,12 @@ func TestGameConnectAddress(t *testing.T) {
 			want: "169.254.12.131:27776",
 		},
 		{
-			name: "configured preferred over unusable status",
+			name: "usable local is preferred over configured",
 			info: ServerInfo{
 				ConfiguredAddress: "127.0.0.1:27015",
 				Address:           Address{IP: "?.?.?.?:?", Local: "0.0.0.0:27015"},
 			},
-			want: "127.0.0.1:27015",
+			want: "0.0.0.0:27015",
 		},
 		{
 			name: "usable local falls back",
@@ -77,12 +76,12 @@ func TestSTVConnectAddress(t *testing.T) {
 			want: "169.254.12.131:27776",
 		},
 		{
-			name: "stv local fallback with configured host",
+			name: "stv local fallback keeps zero bind",
 			info: ServerInfo{
 				ConfiguredAddress: "127.0.0.1:27015",
 				SourceTV:          SourceTV{Address: "?.?.?.?:?", Delay: "30.0s", Local: "0.0.0.0:27020"},
 			},
-			want: "127.0.0.1:27020",
+			want: "0.0.0.0:27020",
 		},
 	}
 

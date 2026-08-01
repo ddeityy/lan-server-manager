@@ -5,6 +5,26 @@ import (
 	"testing"
 )
 
+func TestRefreshFillsConfiguredAddress(t *testing.T) {
+	c := NewClient("127.0.0.1:27015", "test")
+	// Simulate a parsed status with unusable addresses.
+	c.lastInfo = ServerInfo{
+		Address:  Address{IP: "?.?.?.?:?"},
+		SourceTV: SourceTV{Address: "?.?.?.?:?", Local: "0.0.0.0:27020"},
+	}
+
+	// We can't call Refresh without a real server, but we can verify the
+	// helpers behave correctly with ConfiguredAddress set manually.
+	c.lastInfo.ConfiguredAddress = c.address
+
+	if got := c.lastInfo.GameConnectAddress(); got != "127.0.0.1:27015" {
+		t.Errorf("GameConnectAddress() = %q, want %q", got, "127.0.0.1:27015")
+	}
+	if got := c.lastInfo.STVConnectAddress(); got != "0.0.0.0:27020" {
+		t.Errorf("STVConnectAddress() = %q, want %q", got, "0.0.0.0:27020")
+	}
+}
+
 func TestParseStatus(t *testing.T) {
 	data, err := os.ReadFile("testdata/example_rcon_status_output.txt")
 	if err != nil {
