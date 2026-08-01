@@ -21,7 +21,6 @@ type ServerInfo struct {
 	addressLabel         *widget.Label
 	sourceTVLabel        *widget.Label
 	mapLabel             *widget.Label
-	playersLabel         *widget.Label
 	connectLabel         *widget.Label
 	stvLabel             *widget.Label
 	copyConnectButton    *widget.Button
@@ -44,7 +43,6 @@ func newServerInfo(
 	si.addressLabel = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	si.sourceTVLabel = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	si.mapLabel = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	si.playersLabel = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	si.connectLabel = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	si.stvLabel = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
@@ -68,10 +66,9 @@ func newServerInfo(
 func (si *ServerInfo) View() fyne.CanvasObject {
 	addressTile := widget.NewCard("Address", "", si.addressLabel)
 	mapTile := widget.NewCard("Map", "", si.mapLabel)
-	playersTile := widget.NewCard("Players", "", si.playersLabel)
+
 	sourceTVTile := widget.NewCard("SourceTV", "", si.sourceTVLabel)
 	connectTile := widget.NewCard("Connect", "", container.NewBorder(nil, nil, nil, si.copyConnectButton, si.connectLabel))
-	stvTile := widget.NewCard("STV", "", container.NewBorder(nil, nil, nil, si.copySTVButton, si.stvLabel))
 
 	nameTile := widget.NewCard("Name", "", si.serverNameLabel)
 
@@ -81,15 +78,16 @@ func (si *ServerInfo) View() fyne.CanvasObject {
 		si.refreshIntervalEntry,
 	)
 
+	stvConnectTile := widget.NewCard("STV connect", "", container.NewBorder(nil, nil, nil, si.copySTVButton, si.stvLabel))
+
 	return widget.NewCard("", "", container.NewVBox(
 		header,
 		nameTile,
 		mapTile,
-		playersTile,
 		addressTile,
-		sourceTVTile,
-		stvTile,
 		connectTile,
+		sourceTVTile,
+		stvConnectTile,
 		si.statusLabel,
 	))
 }
@@ -109,7 +107,6 @@ func (si *ServerInfo) Reset() {
 	si.serverNameLabel.SetText("")
 	si.addressLabel.SetText("")
 	si.mapLabel.SetText("")
-	si.playersLabel.SetText("")
 	si.sourceTVLabel.SetText("")
 	si.connectLabel.SetText("")
 	si.stvLabel.SetText("")
@@ -149,7 +146,6 @@ func (si *ServerInfo) SetInfo(info server.ServerInfo, configuredAddress, passwor
 	}
 
 	si.mapLabel.SetText(info.Map)
-	si.playersLabel.SetText(fmt.Sprintf("%d / %d", info.HumanPlayers, info.MaxPlayers))
 
 	si.updateConnectStrings(password)
 }
