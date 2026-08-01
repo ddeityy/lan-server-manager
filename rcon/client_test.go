@@ -19,8 +19,8 @@ func TestParseStatus(t *testing.T) {
 	if info.Hostname != "MoscowLAN Server №1" {
 		t.Errorf("hostname = %q, want %q", info.Hostname, "MoscowLAN Server №1")
 	}
-	if info.Address.SDR != "169.254.12.131:27776" {
-		t.Errorf("address sdr = %q, want %q", info.Address.SDR, "169.254.12.131:27776")
+	if info.Address.IP != "169.254.12.131:27776" {
+		t.Errorf("address sdr = %q, want %q", info.Address.IP, "169.254.12.131:27776")
 	}
 	if info.Address.Local != "0.0.0.0:27015" {
 		t.Errorf("address local = %q, want %q", info.Address.Local, "0.0.0.0:27015")
