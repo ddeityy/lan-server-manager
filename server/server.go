@@ -27,10 +27,18 @@ type SourceTV struct {
 	Local   string
 }
 
+// Address holds the three addresses reported by the Source engine status
+// command: SDR (the reported UDP/IP endpoint), Local bind, and public Steam IP.
+type Address struct {
+	SDR    string
+	Local  string
+	Public string
+}
+
 // ServerInfo holds the parsed output of the rcon "status" command.
 type ServerInfo struct {
 	Hostname     string
-	Address      string
+	Address      Address
 	Map          string
 	SourceTV     SourceTV
 	HumanPlayers int
@@ -96,6 +104,11 @@ func (s *Server) Kick(userID int) error {
 	return nil
 }
 
+// Execute sends an arbitrary RCON command to the server.
+func (s *Server) Execute(cmd string) error {
+	return s.execute(cmd)
+}
+
 // ChangeLevel sends the Source changelevel command for the given map.
 func (s *Server) ChangeLevel(level string) error {
 	return s.execute("changelevel " + level)
@@ -158,8 +171,8 @@ func (s *Server) Refresh() error {
 	}
 
 	// Fall back to the configured address if the server did not report one.
-	if info.Address == "" {
-		info.Address = s.address
+	if info.Address.SDR == "" {
+		info.Address.SDR = s.address
 	}
 
 	s.lastInfo = info
@@ -190,8 +203,14 @@ func ParseStatus(status string) (ServerInfo, error) {
 			}
 
 		case strings.HasPrefix(line, "udp/ip"):
-			if m := regexp.MustCompile(`udp/ip\s*:\s*(\S+)`).FindStringSubmatch(line); len(m) > 1 {
-				info.Address = m[1]
+			if m := regexp.MustCompile(`udp/ip\s*:\s*(\S+(?::\d+)?)\s*(?:\(local:\s*([^)]+)\))?\s*(?:\(public IP from Steam:\s*([^)]+)\))?`).FindStringSubmatch(line); len(m) > 1 {
+				info.Address.SDR = m[1]
+				if len(m) > 2 {
+					info.Address.Local = m[2]
+				}
+				if len(m) > 3 {
+					info.Address.Public = m[3]
+				}
 			}
 
 		case strings.HasPrefix(line, "map"):

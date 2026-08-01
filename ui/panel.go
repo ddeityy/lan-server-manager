@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -91,10 +92,12 @@ type ServerPanel struct {
 	changeLevelButton    *widget.Button
 	changePasswordButton *widget.Button
 	execConfigButton     *widget.Button
+	customCommandButton  *widget.Button
 	kickAllButton        *widget.Button
 
 	mapSelect           *widget.Select
 	configSelect        *widget.Select
+	customCommandEntry  *widget.Entry
 	serverPasswordEntry *widget.Entry
 
 	refreshMutex   sync.Mutex
@@ -197,11 +200,18 @@ func (p *ServerPanel) buildUI(title string) {
 	// line up. The placeholder only affects min-width; the selected config is
 	// still displayed.
 	p.configSelect.PlaceHolder = longestMapName()
+	p.changeLevelButton = widget.NewButton("Send", func() { p.changeLevel() })
+	p.changeLevelButton.Disable()
 
-	p.execConfigButton = widget.NewButton("Exec config", func() { p.execConfig() })
+	p.execConfigButton = widget.NewButton("Send", func() { p.execConfig() })
 	p.execConfigButton.Disable()
 
-	p.changePasswordButton = widget.NewButton("Set password", func() { p.changeServerPassword() })
+	p.customCommandEntry = widget.NewEntry()
+
+	p.customCommandButton = widget.NewButton("Send", func() { p.sendCustomCommand() })
+	p.customCommandButton.Disable()
+
+	p.changePasswordButton = widget.NewButton("Send", func() { p.changeServerPassword() })
 	p.changePasswordButton.Disable()
 
 	p.kickAllButton = widget.NewButton("Kick All Players", func() { p.confirmKickAll() })
@@ -224,9 +234,14 @@ func (p *ServerPanel) buildUI(title string) {
 	)
 
 	actionBox := container.NewVBox(
+		widget.NewLabelWithStyle("Change server password", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		container.NewGridWithColumns(2, p.serverPasswordEntry, p.changePasswordButton),
+		widget.NewLabelWithStyle("Change map", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		container.NewGridWithColumns(2, p.mapSelect, p.changeLevelButton),
+		widget.NewLabelWithStyle("Exec config", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		container.NewGridWithColumns(2, p.configSelect, p.execConfigButton),
+		widget.NewLabelWithStyle("Custom command", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		container.NewGridWithColumns(2, p.customCommandEntry, p.customCommandButton),
 		p.actionsStatusLabel,
 	)
 
@@ -254,8 +269,10 @@ func (p *ServerPanel) buildUI(title string) {
 
 	serverInfoCard := widget.NewCard("", "", container.NewVBox(
 		serverInfoHeader,
-		container.NewGridWithColumns(2, mapTile, playersTile),
-		container.NewGridWithColumns(2, addressTile, sourceTVTile),
+		mapTile,
+		playersTile,
+		addressTile,
+		sourceTVTile,
 		stvTile,
 		connectTile,
 		p.serverInfoStatusLabel,
@@ -330,8 +347,8 @@ func (p *ServerPanel) setConnected(connected bool) {
 	p.changeLevelButton.Disable()
 	p.changePasswordButton.Disable()
 	p.execConfigButton.Disable()
+	p.customCommandButton.Disable()
 	p.kickAllButton.Disable()
-	p.statusLabel.SetText("Disconnected")
 }
 
 func (p *ServerPanel) resetInfo() {
@@ -361,7 +378,7 @@ func (p *ServerPanel) updateInfo(info server.ServerInfo, err error) {
 
 	p.lastInfo = info
 
-	p.addressLabel.SetText(info.Address)
+	p.addressLabel.SetText(formatAddress(info.Address))
 	if info.SourceTV.Address != "" {
 		tvText := fmt.Sprintf("%s (%s)", info.SourceTV.Address, info.SourceTV.Delay)
 		if info.SourceTV.Local != "" {
@@ -418,14 +435,20 @@ func (p *ServerPanel) updateInfo(info server.ServerInfo, err error) {
 // updateConnectStrings rebuilds the connect and stv copy strings from the
 // current server info and password entry.
 func (p *ServerPanel) updateConnectStrings() {
-	if p.lastInfo.Address == "" {
+	addr := p.lastInfo.Address
+	gameAddr := addr.Local
+	if gameAddr == "" {
+		gameAddr = addr.SDR
+	}
+
+	if gameAddr == "" {
 		p.connectLabel.SetText("-")
 		p.stvLabel.SetText("-")
 		return
 	}
 
 	password := p.serverPasswordEntry.Text
-	connect := fmt.Sprintf("connect %s", p.lastInfo.Address)
+	connect := fmt.Sprintf("connect %s", gameAddr)
 	if password != "" {
 		connect += fmt.Sprintf("; password %s", password)
 	}
@@ -439,6 +462,26 @@ func (p *ServerPanel) updateConnectStrings() {
 		stv = "-"
 	}
 	p.stvLabel.SetText(stv)
+}
+
+// formatAddress returns a multi-line summary of the server's addresses for the
+// Address info tile.
+func formatAddress(a server.Address) string {
+	if a.SDR == "" && a.Local == "" && a.Public == "" {
+		return "-"
+	}
+
+	parts := []string{}
+	if a.SDR != "" {
+		parts = append(parts, fmt.Sprintf("SDR: %s", a.SDR))
+	}
+	if a.Local != "" {
+		parts = append(parts, fmt.Sprintf("Local: %s", a.Local))
+	}
+	if a.Public != "" {
+		parts = append(parts, fmt.Sprintf("Public: %s", a.Public))
+	}
+	return strings.Join(parts, "\n")
 }
 
 func (p *ServerPanel) copyConnectString() {

@@ -43,6 +43,7 @@ After connecting, the panel shows:
 - **Change map** sends `changelevel <map>` over RCON.
 - **Exec config** sends `exec <config_name>` over RCON.
 - **Set password** sends `sv_password <password>` over RCON and updates the copyable connect strings.
+- **Custom command** lets you type and send any arbitrary RCON command.
 - **Kick** on a player row sends `kickid <userid>` over RCON and refreshes the list.
 - **Kick All Players** asks for confirmation in a modal dialog, then kicks every listed human player and refreshes.
 
@@ -68,17 +69,31 @@ configs = [
     "etf2l_6v6_koth",
 ]
 
-# Optional: open and connect to servers automatically on startup.
-# [[servers]]
-# address = "0.0.0.0:27015"
-# rcon_password = "test"
+# Default MoscowLAN servers loaded from `msk-lan-compose.yml`.
+# When [[servers]] entries are present, the app opens a tab for each and
+# connects automatically.
+[[servers]]
+address = "127.0.0.1:27015"
+rcon_password = "dsadsadsadsadsada"
+
+[[servers]]
+address = "127.0.0.1:27025"
+rcon_password = "dsadsadsadsadsada"
+
+[[servers]]
+address = "127.0.0.1:27035"
+rcon_password = "dsadsadsadsadsada"
+
+[[servers]]
+address = "127.0.0.1:27045"
+rcon_password = "dsadsadsadsadsada"
 ```
 
 If `config/config.toml` is missing or invalid, the app falls back to the embedded default config.
 
 When `[[servers]]` entries are present, the app opens a tab for each one and connects automatically. Servers from the config take priority over tabs saved in preferences.
 
-## Test with Docker
+# Test with Docker
 
 For local development you can use the `spiretf/docker-spire-server` image:
 
@@ -91,6 +106,25 @@ docker compose up -e RCON_PASSWORD=secret
 ```
 
 Then connect the app to `127.0.0.1:27015` with the matching password.
+
+## MoscowLAN setup
+
+The default configuration points at the servers defined in `msk-lan-compose.yml`:
+
+| Address           | Purpose                |
+|-------------------|------------------------|
+| `127.0.0.1:27015` | MoscowLAN Server #1    |
+| `127.0.0.1:27025` | MoscowLAN Server #2    |
+| `127.0.0.1:27035` | MoscowLAN Server #3    |
+| `127.0.0.1:27045` | MoscowLAN MGE Server   |
+
+Start those servers with:
+
+```sh
+docker compose -f msk-lan-compose.yml up
+```
+
+The app will open a tab for each server and connect automatically.
 
 ## Build
 

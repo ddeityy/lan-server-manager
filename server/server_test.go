@@ -19,8 +19,14 @@ func TestParseStatus(t *testing.T) {
 	if info.Hostname != "test" {
 		t.Errorf("hostname = %q, want %q", info.Hostname, "test")
 	}
-	if info.Address != "169.254.77.194:47656" {
-		t.Errorf("address = %q, want %q", info.Address, "169.254.77.194:47656")
+	if info.Address.SDR != "169.254.77.194:47656" {
+		t.Errorf("address sdr = %q, want %q", info.Address.SDR, "169.254.77.194:47656")
+	}
+	if info.Address.Local != "0.0.0.0:27015" {
+		t.Errorf("address local = %q, want %q", info.Address.Local, "0.0.0.0:27015")
+	}
+	if info.Address.Public != "91.77.160.217" {
+		t.Errorf("address public = %q, want %q", info.Address.Public, "91.77.160.217")
 	}
 	if info.Map != "cp_badlands" {
 		t.Errorf("map = %q, want %q", info.Map, "cp_badlands")

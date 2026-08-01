@@ -12,7 +12,7 @@ import (
 )
 
 // plusTabLabel is the label shown on the add-server tab.
-const plusTabLabel = " ＋ "
+const plusTabLabel = "＋"
 
 // savedServerTab stores one saved tab's connection details.
 type savedServerTab struct {

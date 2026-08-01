@@ -1,12 +1,11 @@
 package ui
 
 import (
-	"image/color"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -190,13 +189,14 @@ func (r *serverTabsRenderer) updateBar() {
 	r.bar.Refresh()
 }
 
-// tabButton renders a single tab in the tab bar.
+// tabButton renders a single tab in the tab bar. It is backed by a standard
+// widget.Button so hover/focus effects work reliably, with a custom label,
+// selection indicator, and optional close button layered on top.
 type tabButton struct {
 	widget.BaseWidget
 
 	text     string
 	selected bool
-	hovered  bool
 
 	onTapped func()
 	onClosed func()
@@ -212,58 +212,52 @@ func (b *tabButton) CreateRenderer() fyne.WidgetRenderer {
 	th := b.Theme()
 	v := fyne.CurrentApp().Settings().ThemeVariant()
 
-	// Transparent background is always visible so the tab keeps a mouse-hit
-	// area for hover events even when the hover fill is not shown.
-	background := canvas.NewRectangle(color.Transparent)
-	background.CornerRadius = th.Size(theme.SizeNameSelectionRadius)
+	// The standard button provides hover/tap feedback and hit testing.
+	bg := widget.NewButton("", func() {
+		if b.onTapped != nil {
+			b.onTapped()
+		}
+	})
+	bg.Importance = widget.LowImportance
 
 	indicator := canvas.NewRectangle(th.Color(theme.ColorNamePrimary, v))
 	indicator.Hide()
 
 	label := canvas.NewText(b.text, th.Color(theme.ColorNameForeground, v))
 	label.TextStyle.Bold = true
+	if strings.Contains(b.text, "＋") {
+		label.TextSize = th.Size(theme.SizeNameText) * 1.4
+	}
 
-	objects := []fyne.CanvasObject{background, label, indicator}
-	var closeBtn *tabCloseButton
+	objects := []fyne.CanvasObject{bg, indicator, label}
+	var closeBtn *widget.Button
 	if b.onClosed != nil {
-		closeBtn = newTabCloseButton(func() { b.onClosed() })
-		closeBtn.Hide()
+		closeBtn = widget.NewButtonWithIcon("", theme.CancelIcon(), func() {
+			if b.onClosed != nil {
+				b.onClosed()
+			}
+		})
+		closeBtn.Importance = widget.LowImportance
 		objects = append(objects, closeBtn)
 	}
 
 	return &tabButtonRenderer{
-		button:     b,
-		background: background,
-		indicator:  indicator,
-		label:      label,
-		closeBtn:   closeBtn,
-		objects:    objects,
+		button:    b,
+		bg:        bg,
+		indicator: indicator,
+		label:     label,
+		closeBtn:  closeBtn,
+		objects:   objects,
 	}
-}
-
-func (b *tabButton) Tapped(*fyne.PointEvent) {
-	if b.onTapped != nil {
-		b.onTapped()
-	}
-}
-
-func (b *tabButton) MouseIn(*desktop.MouseEvent) {
-	b.hovered = true
-	b.Refresh()
-}
-
-func (b *tabButton) MouseOut() {
-	b.hovered = false
-	b.Refresh()
 }
 
 type tabButtonRenderer struct {
-	button     *tabButton
-	background *canvas.Rectangle
-	indicator  *canvas.Rectangle
-	label      *canvas.Text
-	closeBtn   *tabCloseButton
-	objects    []fyne.CanvasObject
+	button    *tabButton
+	bg        *widget.Button
+	indicator *canvas.Rectangle
+	label     *canvas.Text
+	closeBtn  *widget.Button
+	objects   []fyne.CanvasObject
 }
 
 func (r *tabButtonRenderer) Destroy() {}
@@ -274,12 +268,12 @@ func (r *tabButtonRenderer) Objects() []fyne.CanvasObject {
 
 func (r *tabButtonRenderer) MinSize() fyne.Size {
 	th := r.button.Theme()
-	padding := th.Size(theme.SizeNameInnerPadding)
+	padding := th.Size(theme.SizeNameInnerPadding) + th.Size(theme.SizeNamePadding)
 	labelSize := r.label.MinSize()
 	width := labelSize.Width + padding*2
 	height := labelSize.Height + padding
 
-	if r.button.onClosed != nil {
+	if r.closeBtn != nil {
 		closeSize := th.Size(theme.SizeNameInlineIcon)
 		width += closeSize + padding
 		if closeSize > height-padding {
@@ -291,9 +285,14 @@ func (r *tabButtonRenderer) MinSize() fyne.Size {
 
 func (r *tabButtonRenderer) Layout(size fyne.Size) {
 	th := r.button.Theme()
-	pad := th.Size(theme.SizeNamePadding)
+	pad := th.Size(theme.SizeNameInnerPadding) + th.Size(theme.SizeNamePadding)
 
-	r.background.Resize(size)
+	r.bg.Move(fyne.NewPos(0, 0))
+	r.bg.Resize(size)
+
+	indicatorHeight := th.Size(theme.SizeNameSelectionRadius)
+	r.indicator.Move(fyne.NewPos(0, size.Height-indicatorHeight))
+	r.indicator.Resize(fyne.NewSize(size.Width, indicatorHeight))
 
 	labelWidth := size.Width - pad*2
 	if r.closeBtn != nil {
@@ -308,10 +307,6 @@ func (r *tabButtonRenderer) Layout(size fyne.Size) {
 		r.closeBtn.Move(fyne.NewPos(size.Width-inlineIconSize-pad, (size.Height-inlineIconSize)/2))
 		r.closeBtn.Resize(fyne.NewSquareSize(inlineIconSize))
 	}
-
-	indicatorHeight := th.Size(theme.SizeNameSelectionRadius)
-	r.indicator.Move(fyne.NewPos(0, size.Height-indicatorHeight))
-	r.indicator.Resize(fyne.NewSize(size.Width, indicatorHeight))
 }
 
 func (r *tabButtonRenderer) Refresh() {
@@ -327,107 +322,13 @@ func (r *tabButtonRenderer) Refresh() {
 		r.indicator.Hide()
 	}
 
-	if !r.button.selected && r.button.hovered {
-		r.background.FillColor = th.Color(theme.ColorNameHover, v)
-	} else {
-		r.background.FillColor = color.Transparent
-	}
-
-	r.background.Refresh()
+	r.bg.Refresh()
 	r.indicator.Refresh()
 
 	r.label.Text = r.button.text
 	r.label.Refresh()
 
 	if r.closeBtn != nil {
-		// Hover delivery is unreliable for our custom widget at the moment,
-		// so keep the close button visible on every closable tab.
-		r.closeBtn.Show()
 		r.closeBtn.Refresh()
 	}
-}
-
-// tabCloseButton is the small "x" shown on hover for closable tabs.
-type tabCloseButton struct {
-	widget.BaseWidget
-
-	hovered  bool
-	onTapped func()
-}
-
-func newTabCloseButton(onTapped func()) *tabCloseButton {
-	b := &tabCloseButton{onTapped: onTapped}
-	b.ExtendBaseWidget(b)
-	return b
-}
-
-func (b *tabCloseButton) CreateRenderer() fyne.WidgetRenderer {
-	th := b.Theme()
-	v := fyne.CurrentApp().Settings().ThemeVariant()
-
-	background := canvas.NewRectangle(th.Color(theme.ColorNameHover, v))
-	background.CornerRadius = th.Size(theme.SizeNameSelectionRadius)
-	background.Hide()
-
-	icon := canvas.NewImageFromResource(theme.CancelIcon())
-
-	return &tabCloseButtonRenderer{
-		button:     b,
-		background: background,
-		icon:       icon,
-		objects:    []fyne.CanvasObject{background, icon},
-	}
-}
-
-func (b *tabCloseButton) Tapped(*fyne.PointEvent) {
-	if b.onTapped != nil {
-		b.onTapped()
-	}
-}
-
-func (b *tabCloseButton) MouseIn(*desktop.MouseEvent) {
-	b.hovered = true
-	b.Refresh()
-}
-
-func (b *tabCloseButton) MouseOut() {
-	b.hovered = false
-	b.Refresh()
-}
-
-type tabCloseButtonRenderer struct {
-	button     *tabCloseButton
-	background *canvas.Rectangle
-	icon       *canvas.Image
-	objects    []fyne.CanvasObject
-}
-
-func (r *tabCloseButtonRenderer) Destroy() {}
-
-func (r *tabCloseButtonRenderer) Objects() []fyne.CanvasObject {
-	return r.objects
-}
-
-func (r *tabCloseButtonRenderer) MinSize() fyne.Size {
-	return fyne.NewSquareSize(r.button.Theme().Size(theme.SizeNameInlineIcon))
-}
-
-func (r *tabCloseButtonRenderer) Layout(size fyne.Size) {
-	r.background.Resize(size)
-	r.icon.Resize(size)
-}
-
-func (r *tabCloseButtonRenderer) Refresh() {
-	th := r.button.Theme()
-	v := fyne.CurrentApp().Settings().ThemeVariant()
-
-	if r.button.hovered {
-		r.background.FillColor = th.Color(theme.ColorNameHover, v)
-		r.background.CornerRadius = th.Size(theme.SizeNameSelectionRadius)
-		r.background.Show()
-	} else {
-		r.background.Hide()
-	}
-	r.background.Refresh()
-	r.icon.Refresh()
 }
