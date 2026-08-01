@@ -6,7 +6,7 @@ services:
     image: ghcr.io/melkortf/tf2-competitive
     restart: always
     environment:
-      - SERVER_HOSTNAME="MoscowLAN Server №1"
+      - SERVER_HOSTNAME="MoscowLAN Server 1"
       - PORT=27015
       - CLIENT_PORT=27016
       - STEAM_PORT=27018
@@ -14,12 +14,6 @@ services:
       - RCON_PASSWORD=dsadsadsadsadsada
       - DEMOS_TF_APIKEY=
       - LOGS_TF_APIKEY=
-      - ENABLE_FAKE_IP=1
-
-    ports:
-      - "27015:27015"
-      - "27016:27016"
-      - "27020:27020"
     network_mode: host
 
   # # Server 2

@@ -195,16 +195,13 @@ func (si *ServerInfo) updateConnectStrings(password string) {
 func formatAddress(a server.Address, configured string) string {
 	parts := []string{}
 	if isAddressUsable(a.SDR) {
-		parts = append(parts, fmt.Sprintf("SDR: %s", a.SDR))
+		parts = append(parts, fmt.Sprintf("IP: %s", a.SDR))
 	}
 	if isAddressUsable(configured) && configured != a.SDR {
 		parts = append(parts, fmt.Sprintf("Local: %s", configured))
 	}
-	if isAddressUsable(a.Public) {
-		parts = append(parts, fmt.Sprintf("Public: %s", a.Public))
-	}
 	if len(parts) == 0 {
-		return ""
+		return "Local: 127.0.0.1:27015"
 	}
 	return strings.Join(parts, "\n")
 }
