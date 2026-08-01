@@ -6,15 +6,44 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/widget"
 
-	"lan-server-manager/server"
+	"lan-server-manager/rcon"
 )
+
+// runAction disables button, sets a pending status, executes the RCON action in a
+// goroutine, and then re-enables the button and reports the result on the UI thread.
+func (p *ServerPanel) runAction(
+	button *widget.Button,
+	pending, success, failure string,
+	action func() error,
+	onSuccess func(),
+) {
+	button.Disable()
+	p.actions.SetStatus(pending)
+
+	go func() {
+		err := action()
+
+		fyne.Do(func() {
+			button.Enable()
+			if err != nil {
+				p.actions.SetStatus(failure + ": " + formatError(err))
+				return
+			}
+			if onSuccess != nil {
+				onSuccess()
+			}
+			p.actions.SetStatus(success)
+		})
+	}()
+}
 
 // Disconnect closes the RCON connection and resets the panel UI.
 func (p *ServerPanel) Disconnect() {
-	if p.server != nil {
-		p.server.Close()
-		p.server = nil
+	if p.client != nil {
+		p.client.Close()
+		p.client = nil
 	}
 	p.setConnected(false)
 	p.connection.SetStatus("Disconnected")
@@ -32,11 +61,11 @@ func (p *ServerPanel) connect() {
 	p.connection.SetConnecting()
 
 	go func() {
-		if p.server != nil {
-			p.server.Close()
+		if p.client != nil {
+			p.client.Close()
 		}
-		p.server = server.NewServer(address, password)
-		err := p.server.Connect()
+		p.client = rcon.NewClient(address, password)
+		err := p.client.Connect()
 
 		fyne.Do(func() {
 			if err != nil {
@@ -57,9 +86,9 @@ func (p *ServerPanel) connect() {
 }
 
 func (p *ServerPanel) disconnect() {
-	if p.server != nil {
-		p.server.Close()
-		p.server = nil
+	if p.client != nil {
+		p.client.Close()
+		p.client = nil
 	}
 
 	fyne.Do(func() {
@@ -71,7 +100,7 @@ func (p *ServerPanel) disconnect() {
 }
 
 func (p *ServerPanel) refresh() {
-	if p.server == nil {
+	if p.client == nil {
 		return
 	}
 
@@ -84,7 +113,7 @@ func (p *ServerPanel) refresh() {
 }
 
 func (p *ServerPanel) kick(userid int) {
-	if p.server == nil {
+	if p.client == nil {
 		p.actions.SetStatus("Not connected")
 		return
 	}
@@ -92,7 +121,7 @@ func (p *ServerPanel) kick(userid int) {
 	p.actions.SetStatus(fmt.Sprintf("Kicking player %d...", userid))
 
 	go func() {
-		err := p.server.Kick(userid)
+		err := p.client.Kick(userid)
 
 		fyne.Do(func() {
 			if err != nil {
@@ -120,7 +149,7 @@ func (p *ServerPanel) confirmKickAll() {
 }
 
 func (p *ServerPanel) kickAll() {
-	if p.server == nil {
+	if p.client == nil {
 		p.actions.SetStatus("Not connected")
 		return
 	}
@@ -141,7 +170,7 @@ func (p *ServerPanel) kickAll() {
 
 		var lastErr error
 		for _, player := range players {
-			if err := p.server.Kick(player.UserID); err != nil {
+			if err := p.client.Kick(player.UserID); err != nil {
 				lastErr = err
 			}
 		}
@@ -163,26 +192,19 @@ func (p *ServerPanel) changeLevel() {
 		p.actions.SetStatus("Select a map first")
 		return
 	}
-	if p.server == nil {
+	if p.client == nil {
 		p.actions.SetStatus("Not connected")
 		return
 	}
 
-	p.actions.changeLevelButton.Disable()
-	p.actions.SetStatus("Changing level to " + mapName + "...")
-
-	go func() {
-		err := p.server.ChangeLevel(mapName)
-
-		fyne.Do(func() {
-			p.actions.changeLevelButton.Enable()
-			if err != nil {
-				p.actions.SetStatus("Changelevel failed: " + formatError(err))
-				return
-			}
-			p.actions.SetStatus("Changed level to " + mapName)
-		})
-	}()
+	p.runAction(
+		p.actions.changeLevelButton,
+		"Changing level to "+mapName+"...",
+		"Changed level to "+mapName,
+		"Changelevel failed",
+		func() error { return p.client.ChangeLevel(mapName) },
+		nil,
+	)
 }
 
 func (p *ServerPanel) changeServerPassword() {
@@ -191,27 +213,19 @@ func (p *ServerPanel) changeServerPassword() {
 		p.actions.SetStatus("Enter a password first")
 		return
 	}
-	if p.server == nil {
+	if p.client == nil {
 		p.actions.SetStatus("Not connected")
 		return
 	}
 
-	p.actions.changePasswordButton.Disable()
-	p.actions.SetStatus("Setting server password...")
-
-	go func() {
-		err := p.server.SetPassword(password)
-
-		fyne.Do(func() {
-			p.actions.changePasswordButton.Enable()
-			if err != nil {
-				p.actions.SetStatus("Set password failed: " + formatError(err))
-				return
-			}
-			p.serverInfo.UpdateConnectStrings(password)
-			p.actions.SetStatus("Server password updated")
-		})
-	}()
+	p.runAction(
+		p.actions.changePasswordButton,
+		"Setting server password...",
+		"Server password updated",
+		"Set password failed",
+		func() error { return p.client.SetPassword(password) },
+		func() { p.serverInfo.UpdateConnectStrings(password) },
+	)
 }
 
 func (p *ServerPanel) execConfig() {
@@ -220,26 +234,19 @@ func (p *ServerPanel) execConfig() {
 		p.actions.SetStatus("Select a config first")
 		return
 	}
-	if p.server == nil {
+	if p.client == nil {
 		p.actions.SetStatus("Not connected")
 		return
 	}
 
-	p.actions.execConfigButton.Disable()
-	p.actions.SetStatus("Executing config " + configName + "...")
-
-	go func() {
-		err := p.server.ExecConfig(configName)
-
-		fyne.Do(func() {
-			p.actions.execConfigButton.Enable()
-			if err != nil {
-				p.actions.SetStatus("Exec config failed: " + formatError(err))
-				return
-			}
-			p.actions.SetStatus("Executed config " + configName)
-		})
-	}()
+	p.runAction(
+		p.actions.execConfigButton,
+		"Executing config "+configName+"...",
+		"Executed config "+configName,
+		"Exec config failed",
+		func() error { return p.client.ExecConfig(configName) },
+		nil,
+	)
 }
 
 func (p *ServerPanel) sendMessage() {
@@ -248,26 +255,19 @@ func (p *ServerPanel) sendMessage() {
 		p.actions.SetStatus("Enter a message first")
 		return
 	}
-	if p.server == nil {
+	if p.client == nil {
 		p.actions.SetStatus("Not connected")
 		return
 	}
 
-	p.actions.sendMessageButton.Disable()
-	p.actions.SetStatus("Sending message...")
-
-	go func() {
-		err := p.server.Execute("say " + msg)
-
-		fyne.Do(func() {
-			p.actions.sendMessageButton.Enable()
-			if err != nil {
-				p.actions.SetStatus("Send message failed: " + formatError(err))
-				return
-			}
-			p.actions.SetStatus("Sent message")
-		})
-	}()
+	p.runAction(
+		p.actions.sendMessageButton,
+		"Sending message...",
+		"Sent message",
+		"Send message failed",
+		func() error { return p.client.Execute("say " + msg) },
+		nil,
+	)
 }
 
 func (p *ServerPanel) sendCustomCommand() {
@@ -276,24 +276,17 @@ func (p *ServerPanel) sendCustomCommand() {
 		p.actions.SetStatus("Enter a command first")
 		return
 	}
-	if p.server == nil {
+	if p.client == nil {
 		p.actions.SetStatus("Not connected")
 		return
 	}
 
-	p.actions.customCommandButton.Disable()
-	p.actions.SetStatus("Sending: " + cmd)
-
-	go func() {
-		err := p.server.Execute(cmd)
-
-		fyne.Do(func() {
-			p.actions.customCommandButton.Enable()
-			if err != nil {
-				p.actions.SetStatus("Command failed: " + formatError(err))
-				return
-			}
-			p.actions.SetStatus("Sent: " + cmd)
-		})
-	}()
+	p.runAction(
+		p.actions.customCommandButton,
+		"Sending: "+cmd,
+		"Sent: "+cmd,
+		"Command failed",
+		func() error { return p.client.Execute(cmd) },
+		nil,
+	)
 }

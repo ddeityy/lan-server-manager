@@ -1,4 +1,4 @@
-package server
+package rcon
 
 import "testing"
 
@@ -16,8 +16,8 @@ func TestAddressIsUsable(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		if got := addressIsUsable(c.addr); got != c.want {
-			t.Errorf("addressIsUsable(%q) = %v, want %v", c.addr, got, c.want)
+		if got := AddressIsUsable(c.addr); got != c.want {
+			t.Errorf("AddressIsUsable(%q) = %v, want %v", c.addr, got, c.want)
 		}
 	}
 }

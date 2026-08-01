@@ -1,4 +1,4 @@
-package server
+package rcon
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gorcon/rcon"
+	gorcon "github.com/gorcon/rcon"
 )
 
 // Player holds the fields we care about from the status player table.
@@ -49,18 +49,18 @@ type ServerInfo struct {
 }
 
 // GameConnectAddress returns the best address to give to TF2 clients that want
-// to connect to the game server.
+// to connect to the game rcon.
 //
 // The reported UDP/IP address from status is preferred. Fallbacks are only
 // used when the server reports a placeholder such as ?.?.?.?:?.
 func (i ServerInfo) GameConnectAddress() string {
-	if addressIsUsable(i.Address.SDR) {
+	if AddressIsUsable(i.Address.SDR) {
 		return i.Address.SDR
 	}
-	if addressIsUsable(i.Address.Local) {
+	if AddressIsUsable(i.Address.Local) {
 		return i.Address.Local
 	}
-	if addressIsUsable(i.ConfiguredAddress) {
+	if AddressIsUsable(i.ConfiguredAddress) {
 		return i.ConfiguredAddress
 	}
 	return ""
@@ -71,13 +71,13 @@ func (i ServerInfo) GameConnectAddress() string {
 // The server's reported STV address is preferred. If it is unavailable we
 // derive one from the configured game host and the STV port reported by status.
 func (i ServerInfo) STVConnectAddress() string {
-	if addressIsUsable(i.SourceTV.Address) {
+	if AddressIsUsable(i.SourceTV.Address) {
 		return i.SourceTV.Address
 	}
-	if addressIsUsable(i.SourceTV.Local) {
+	if AddressIsUsable(i.SourceTV.Local) {
 		return i.SourceTV.Local
 	}
-	if !addressIsUsable(i.ConfiguredAddress) {
+	if !AddressIsUsable(i.ConfiguredAddress) {
 		return ""
 	}
 	host, _, err := net.SplitHostPort(i.ConfiguredAddress)
@@ -102,25 +102,25 @@ func (i ServerInfo) STVConnectAddress() string {
 	return net.JoinHostPort(host, stvPort)
 }
 
-// Server wraps an RCON connection to a Source engine game server.
-type Server struct {
+// Client wraps an RCON connection to a Source engine game rcon.
+type Client struct {
 	address  string
 	password string
-	conn     *rcon.Conn
+	conn     *gorcon.Conn
 	lastInfo ServerInfo
 }
 
-// NewServer creates a Server without connecting.
-func NewServer(address, password string) *Server {
-	return &Server{
+// NewClient creates a Client without connecting.
+func NewClient(address, password string) *Client {
+	return &Client{
 		address:  address,
 		password: password,
 	}
 }
 
 // Connect dials the RCON endpoint and stores the connection.
-func (s *Server) Connect() error {
-	conn, err := rcon.Dial(s.address, s.password)
+func (s *Client) Connect() error {
+	conn, err := gorcon.Dial(s.address, s.password)
 	if err != nil {
 		return fmt.Errorf("rcon dial: %w", err)
 	}
@@ -129,7 +129,7 @@ func (s *Server) Connect() error {
 }
 
 // Close releases the RCON connection.
-func (s *Server) Close() error {
+func (s *Client) Close() error {
 	if s.conn != nil {
 		err := s.conn.Close()
 		s.conn = nil
@@ -139,38 +139,38 @@ func (s *Server) Close() error {
 }
 
 // Kick removes a player from the server by their user ID.
-func (s *Server) Kick(userID int) error {
+func (s *Client) Kick(userID int) error {
 	_, err := s.send(fmt.Sprintf("kickid %d", userID))
 	return err
 }
 
-// Execute sends an arbitrary RCON command to the server.
-func (s *Server) Execute(cmd string) error {
+// Execute sends an arbitrary RCON command to the rcon.
+func (s *Client) Execute(cmd string) error {
 	return s.execute(cmd)
 }
 
 // ChangeLevel sends the Source changelevel command for the given map.
-func (s *Server) ChangeLevel(level string) error {
+func (s *Client) ChangeLevel(level string) error {
 	return s.execute("changelevel " + level)
 }
 
 // SetPassword sends the Source sv_password command for the given password.
-func (s *Server) SetPassword(password string) error {
+func (s *Client) SetPassword(password string) error {
 	return s.execute("sv_password " + password)
 }
 
 // ExecConfig sends the Source exec command for the given config name.
-func (s *Server) ExecConfig(config string) error {
+func (s *Client) ExecConfig(config string) error {
 	return s.execute("exec " + config)
 }
 
-func (s *Server) execute(cmd string) error {
+func (s *Client) execute(cmd string) error {
 	_, err := s.send(cmd)
 	return err
 }
 
 // send executes a single RCON command, reconnecting once on failure.
-func (s *Server) send(cmd string) (string, error) {
+func (s *Client) send(cmd string) (string, error) {
 	if strings.TrimSpace(cmd) == "" {
 		return "", fmt.Errorf("empty command")
 	}
@@ -194,7 +194,7 @@ func (s *Server) send(cmd string) (string, error) {
 }
 
 // Refresh runs the rcon "status" command and parses the response.
-func (s *Server) Refresh() error {
+func (s *Client) Refresh() error {
 	if s.conn == nil {
 		if err := s.Connect(); err != nil {
 			return err
@@ -214,7 +214,7 @@ func (s *Server) Refresh() error {
 	info.ConfiguredAddress = s.address
 
 	// Fall back to the configured address if the server did not report a usable one.
-	if !addressIsUsable(info.Address.SDR) {
+	if !AddressIsUsable(info.Address.SDR) {
 		info.Address.SDR = s.address
 	}
 	if info.Address.Local == "" {
@@ -226,7 +226,7 @@ func (s *Server) Refresh() error {
 }
 
 // Info returns the most recently parsed server information.
-func (s *Server) Info() ServerInfo {
+func (s *Client) Info() ServerInfo {
 	return s.lastInfo
 }
 
@@ -301,9 +301,9 @@ func stripQuotes(s string) string {
 	return s
 }
 
-// addressIsUsable reports whether an address string is a real endpoint and not
+// AddressIsUsable reports whether an address string is a real endpoint and not
 // an empty or unknown placeholder like "?.?.?.?:?" or "0.0.0.0:27015".
-func addressIsUsable(s string) bool {
+func AddressIsUsable(s string) bool {
 	if s == "" {
 		return false
 	}
