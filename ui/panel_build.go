@@ -7,7 +7,6 @@ import (
 
 func (p *ServerPanel) buildUI(title string) {
 	sidebar := container.NewVBox(
-		widget.NewCard("Server", "", p.serverNameLabel),
 		widget.NewCard("Connection", "", p.connection.View()),
 		widget.NewCard("Actions", "", p.actions.View()),
 	)

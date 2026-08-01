@@ -15,6 +15,7 @@ var defaultConfig []byte
 type ServerPreset struct {
 	Address      string `toml:"address"`
 	RCONPassword string `toml:"rcon_password"`
+	Password     string `toml:"password"`
 }
 
 // Config holds runtime configuration loaded from a TOML file.

@@ -6,7 +6,6 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
 
 	"lan-server-manager/server"
 )
@@ -22,8 +21,6 @@ type ServerPanel struct {
 	actions    *Actions
 	serverInfo *ServerInfo
 	players    *PlayerSection
-
-	serverNameLabel *widget.Label
 
 	refreshMutex   sync.Mutex
 	refreshTicker  *time.Ticker
@@ -48,18 +45,19 @@ func NewServerPanel(window fyne.Window, title string, onTitleChanged, onChanged 
 		p.changeServerPassword,
 		p.changeLevel,
 		p.execConfig,
+		p.sendMessage,
 		p.sendCustomCommand,
 		p.handleMapSelected,
 		p.handleConfigSelected,
 		p.notifyChanged,
 	)
 	p.serverInfo = newServerInfo(
+		title,
 		p.copyConnectString,
 		p.copySTVString,
 		p.handleIntervalChanged,
 	)
 	p.players = newPlayerSection(p.confirmKickAll)
-	p.serverNameLabel = widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
 	p.buildUI(title)
 	return p
@@ -72,7 +70,7 @@ func (p *ServerPanel) TabItem() *container.TabItem {
 
 func (p *ServerPanel) updateTitle(title string) {
 	p.tabItem.Text = title
-	p.serverNameLabel.SetText(title)
+	p.serverInfo.SetName(title)
 	if p.onTitleChanged != nil {
 		p.onTitleChanged()
 	}
