@@ -48,6 +48,10 @@ func (p *ServerPanel) connect() {
 			p.updateTitle(address)
 			p.setConnected(true)
 			p.refresh()
+
+			if p.actions.ServerPassword() != "" {
+				p.changeServerPassword()
+			}
 		})
 	}()
 }
@@ -234,6 +238,34 @@ func (p *ServerPanel) execConfig() {
 				return
 			}
 			p.actions.SetStatus("Executed config " + configName)
+		})
+	}()
+}
+
+func (p *ServerPanel) sendMessage() {
+	msg := strings.TrimSpace(p.actions.Message())
+	if msg == "" {
+		p.actions.SetStatus("Enter a message first")
+		return
+	}
+	if p.server == nil {
+		p.actions.SetStatus("Not connected")
+		return
+	}
+
+	p.actions.sendMessageButton.Disable()
+	p.actions.SetStatus("Sending message...")
+
+	go func() {
+		err := p.server.Execute("say " + msg)
+
+		fyne.Do(func() {
+			p.actions.sendMessageButton.Enable()
+			if err != nil {
+				p.actions.SetStatus("Send message failed: " + formatError(err))
+				return
+			}
+			p.actions.SetStatus("Sent message")
 		})
 	}()
 }

@@ -17,6 +17,7 @@ import (
 // ServerInfo holds the widgets that display parsed status output and the
 // controls that refresh it.
 type ServerInfo struct {
+	serverNameLabel      *widget.Label
 	addressLabel         *widget.Label
 	sourceTVLabel        *widget.Label
 	mapLabel             *widget.Label
@@ -32,12 +33,14 @@ type ServerInfo struct {
 }
 
 func newServerInfo(
+	title string,
 	onCopyConnect,
 	onCopySTV,
 	onIntervalChanged func(),
 ) *ServerInfo {
 	si := &ServerInfo{}
 
+	si.serverNameLabel = widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	si.addressLabel = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	si.sourceTVLabel = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	si.mapLabel = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
@@ -70,6 +73,8 @@ func (si *ServerInfo) View() fyne.CanvasObject {
 	connectTile := widget.NewCard("Connect", "", container.NewBorder(nil, nil, nil, si.copyConnectButton, si.connectLabel))
 	stvTile := widget.NewCard("STV", "", container.NewBorder(nil, nil, nil, si.copySTVButton, si.stvLabel))
 
+	nameTile := widget.NewCard("Name", "", si.serverNameLabel)
+
 	header := container.NewHBox(
 		widget.NewLabelWithStyle("Server Info", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		widget.NewLabel("Refresh interval (s):"),
@@ -78,6 +83,7 @@ func (si *ServerInfo) View() fyne.CanvasObject {
 
 	return widget.NewCard("", "", container.NewVBox(
 		header,
+		nameTile,
 		mapTile,
 		playersTile,
 		addressTile,
@@ -94,9 +100,13 @@ func (si *ServerInfo) SetRefreshing() { si.SetStatus("Refreshing...") }
 // SetStatus updates the status label at the bottom of the server info card.
 func (si *ServerInfo) SetStatus(text string) { si.statusLabel.SetText(text) }
 
+// SetName updates the name displayed at the top of the server info card.
+func (si *ServerInfo) SetName(name string) { si.serverNameLabel.SetText(name) }
+
 // Reset clears all displayed server info and disables copy buttons.
 func (si *ServerInfo) Reset() {
 	si.lastInfo = server.ServerInfo{}
+	si.serverNameLabel.SetText("")
 	si.addressLabel.SetText("")
 	si.mapLabel.SetText("")
 	si.playersLabel.SetText("")

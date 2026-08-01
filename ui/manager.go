@@ -58,6 +58,7 @@ func (m *Manager) loadTabs() {
 			p := m.newPanel(m.nextTabTitle())
 			p.connection.SetAddress(preset.Address)
 			p.connection.SetPassword(preset.RCONPassword)
+			p.actions.SetServerPassword(preset.Password)
 			m.panels = append(m.panels, p)
 		}
 
