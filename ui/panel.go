@@ -2,6 +2,9 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
+	"sync"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -10,6 +13,8 @@ import (
 
 	"lan-server-manager/server"
 )
+
+const defaultRefreshInterval = 10
 
 var mapPool = []string{
 	"cp_sunshine",
@@ -43,6 +48,9 @@ type ServerPanel struct {
 	passwordEntry *widget.Entry
 	statusLabel   *widget.Label
 
+	autoRefreshCheck     *widget.Check
+	refreshIntervalEntry *widget.Entry
+
 	ipLabel          *widget.Label
 	sourceTVLabel    *widget.Label
 	mapLabel         *widget.Label
@@ -56,6 +64,10 @@ type ServerPanel struct {
 	changeLevelButton *widget.Button
 	kickAllButton     *widget.Button
 	mapSelect         *widget.Select
+
+	refreshMu     sync.Mutex
+	refreshTicker *time.Ticker
+	refreshStopCh chan struct{}
 
 	tabItem     *container.TabItem
 	onTitleChan func()
@@ -82,6 +94,22 @@ func (p *ServerPanel) buildUI(title string) {
 	p.passwordEntry = widget.NewPasswordEntry()
 	p.passwordEntry.SetText("test")
 	p.passwordEntry.OnChanged = func(string) { p.notifyChanged() }
+
+	p.autoRefreshCheck = widget.NewCheck("Auto refresh", func(checked bool) {
+		if checked && p.server != nil {
+			p.startAutoRefresh()
+		} else {
+			p.stopAutoRefresh()
+		}
+	})
+
+	p.refreshIntervalEntry = widget.NewEntry()
+	p.refreshIntervalEntry.SetText(fmt.Sprintf("%d", defaultRefreshInterval))
+	p.refreshIntervalEntry.OnSubmitted = func(string) {
+		if p.autoRefreshCheck.Checked {
+			p.startAutoRefresh()
+		}
+	}
 
 	p.statusLabel = widget.NewLabel("")
 
@@ -132,6 +160,13 @@ func (p *ServerPanel) buildUI(title string) {
 	connectionBar := container.NewHBox(p.connectButton, p.disconnectButton)
 	actionBar := container.NewHBox(p.mapSelect, p.changeLevelButton)
 
+	p.refreshIntervalEntry.SetPlaceHolder("seconds")
+	autoRefreshRow := container.NewHBox(
+		p.autoRefreshCheck,
+		widget.NewLabel("Interval (s)"),
+		p.refreshIntervalEntry,
+	)
+
 	form := container.NewVBox(
 		widget.NewForm(
 			widget.NewFormItem("Address", p.addressEntry),
@@ -140,6 +175,7 @@ func (p *ServerPanel) buildUI(title string) {
 		connectionBar,
 		actionBar,
 		p.statusLabel,
+		autoRefreshRow,
 	)
 
 	serverHeader := container.NewHBox(regionLabel, p.refreshButton)
@@ -179,8 +215,12 @@ func (p *ServerPanel) setConnected(connected bool) {
 		p.changeLevelButton.Enable()
 		p.kickAllButton.Enable()
 		p.statusLabel.SetText("Connected")
+		if p.autoRefreshCheck.Checked {
+			p.startAutoRefresh()
+		}
 		return
 	}
+	p.stopAutoRefresh()
 	p.connectButton.Enable()
 	p.disconnectButton.Disable()
 	p.refreshButton.Disable()
@@ -253,4 +293,67 @@ func (p *ServerPanel) updateInfo(info server.ServerInfo, err error) {
 	}
 
 	p.statusLabel.SetText("Connected")
+}
+
+// parseRefreshInterval reads the interval entry, returning seconds.
+// Invalid or too-small values fall back to the default.
+func (p *ServerPanel) parseRefreshInterval() int {
+	s := p.refreshIntervalEntry.Text
+	if s == "" {
+		return defaultRefreshInterval
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 1 {
+		return defaultRefreshInterval
+	}
+	return n
+}
+
+func (p *ServerPanel) startAutoRefresh() {
+	if p.server == nil || !p.autoRefreshCheck.Checked {
+		return
+	}
+	p.stopAutoRefresh()
+
+	interval := time.Duration(p.parseRefreshInterval()) * time.Second
+	p.refreshTicker = time.NewTicker(interval)
+	p.refreshStopCh = make(chan struct{})
+
+	go func() {
+		for {
+			select {
+			case <-p.refreshStopCh:
+				return
+			case <-p.refreshTicker.C:
+				info, err := p.doRefresh()
+				fyne.Do(func() { p.updateInfo(info, err) })
+			}
+		}
+	}()
+}
+
+func (p *ServerPanel) stopAutoRefresh() {
+	if p.refreshTicker != nil {
+		p.refreshTicker.Stop()
+		p.refreshTicker = nil
+	}
+	if p.refreshStopCh != nil {
+		close(p.refreshStopCh)
+		p.refreshStopCh = nil
+	}
+}
+
+// doRefresh performs a synchronous status refresh. It serializes access to the
+// server so manual and automatic refreshes cannot overlap.
+func (p *ServerPanel) doRefresh() (server.ServerInfo, error) {
+	p.refreshMu.Lock()
+	defer p.refreshMu.Unlock()
+
+	if p.server == nil {
+		return server.ServerInfo{}, fmt.Errorf("not connected")
+	}
+	if err := p.server.Refresh(); err != nil {
+		return server.ServerInfo{}, err
+	}
+	return p.server.Info(), nil
 }

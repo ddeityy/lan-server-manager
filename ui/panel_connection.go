@@ -74,9 +74,7 @@ func (p *ServerPanel) refresh() {
 	fyne.Do(func() { p.statusLabel.SetText("Refreshing...") })
 
 	go func() {
-		err := p.server.Refresh()
-		info := p.server.Info()
-
+		info, err := p.doRefresh()
 		fyne.Do(func() { p.updateInfo(info, err) })
 	}()
 }

@@ -8,7 +8,8 @@ A small Fyne GUI for monitoring and managing Team Fortress 2 servers over RCON.
 go run .
 ```
 
-Default connection values are `0.0.0.0:27015` / `test`, but you can change them per tab. Enter the server address, RCON password, and click **Connect**.
+- Default connection values are `0.0.0.0:27015` / `test`, but you can change them per tab. Enter the server address, RCON password, and click **Connect**.
+- Check **Auto refresh** and set an interval in seconds to poll `status` automatically while connected.
 
 ### Tabs
 
