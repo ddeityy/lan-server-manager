@@ -104,8 +104,6 @@ func (p *ServerPanel) refresh() {
 		return
 	}
 
-	p.serverInfo.SetRefreshing()
-
 	go func() {
 		info, err := p.doRefresh()
 		fyne.Do(func() { p.updateInfo(info, err) })
@@ -224,7 +222,7 @@ func (p *ServerPanel) changeServerPassword() {
 		"Server password updated",
 		"Set password failed",
 		func() error { return p.client.SetPassword(password) },
-		func() { p.serverInfo.UpdateConnectStrings(password) },
+		nil,
 	)
 }
 

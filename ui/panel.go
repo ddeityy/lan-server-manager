@@ -40,8 +40,6 @@ func NewServerPanel(window fyne.Window, title string, onTitleChanged func()) *Se
 
 	p.serverInfo = newServerInfo(
 		title,
-		p.copyConnectString,
-		p.copySTVString,
 		p.handleIntervalChanged,
 	)
 
