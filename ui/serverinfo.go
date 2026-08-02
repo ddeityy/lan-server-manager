@@ -62,14 +62,12 @@ func newServerInfo(
 }
 
 // View returns the server info card as a single canvas object.
-func (si *ServerInfo) View() fyne.CanvasObject {
-	addressTile := widget.NewCard("Address", "", si.addressLabel)
-	mapTile := widget.NewCard("Map", "", si.mapLabel)
-
-	sourceTVTile := widget.NewCard("SourceTV", "", si.sourceTVLabel)
-	connectTile := widget.NewCard("Connect", "", container.NewBorder(nil, nil, nil, si.copyConnectButton, si.connectLabel))
-
+func (si *ServerInfo) View(connection fyne.CanvasObject) fyne.CanvasObject {
+	connectionTile := widget.NewCard("Connection", "", connection)
 	nameTile := widget.NewCard("Name", "", si.serverNameLabel)
+	mapTile := widget.NewCard("Map", "", si.mapLabel)
+	addressTile := widget.NewCard("Address", "", si.addressLabel)
+	sourceTVTile := widget.NewCard("SourceTV", "", si.sourceTVLabel)
 
 	header := container.NewHBox(
 		widget.NewLabelWithStyle("Server Info", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
@@ -77,16 +75,13 @@ func (si *ServerInfo) View() fyne.CanvasObject {
 		si.refreshIntervalEntry,
 	)
 
-	stvConnectTile := widget.NewCard("STV connect", "", container.NewBorder(nil, nil, nil, si.copySTVButton, si.stvLabel))
-
 	return widget.NewCard("", "", container.NewVBox(
 		header,
+		connectionTile,
 		nameTile,
 		mapTile,
 		addressTile,
-		connectTile,
 		sourceTVTile,
-		stvConnectTile,
 		si.statusLabel,
 	))
 }
