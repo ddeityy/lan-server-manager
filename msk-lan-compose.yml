@@ -1,12 +1,12 @@
 version: "3.7"
 services:
-
   # Server 1
   MskLanSrv1:
     image: ghcr.io/melkortf/tf2-competitive
     restart: always
     environment:
-      - SERVER_HOSTNAME="MoscowLAN Server 1"
+      - SERVER_HOSTNAME=MoscowLAN Server 1
+      - STV_NAME=MoscowLAN SourceTV 1
       - PORT=27015
       - CLIENT_PORT=27016
       - STEAM_PORT=27018
@@ -14,79 +14,66 @@ services:
       - RCON_PASSWORD=dsadsadsadsadsada
       - DEMOS_TF_APIKEY=
       - LOGS_TF_APIKEY=
+      - TICKRATE=200
+    command: "+sv_pure 2 +map cp_badlands +maxplayers 12 +sv_lan 1"
+    volumes:
+      - ./entrypoint.sh:/home/tf2/server/entrypoint.sh:ro
     network_mode: host
 
-  # # Server 2
-  # MskLanSrv2:
-  #   image: ghcr.io/melkortf/tf2-competitive
-  #   restart: always
-  #   environment:
-  #     - SERVER_HOSTNAME="MoscowLAN Server №2"
-  #     - PORT=27025
-  #     - CLIENT_PORT=27026
-  #     - STEAM_PORT=27028
-  #     - STV_PORT=27030
-  #     - RCON_PASSWORD=dsadsadsadsadsada
-  #     - DEMOS_TF_APIKEY=
-  #     - LOGS_TF_APIKEY=
-  #     - ENABLE_FAKE_IP=1
+  # Server 2
+  MskLanSrv2:
+    image: ghcr.io/melkortf/tf2-competitive
+    restart: always
+    environment:
+      - SERVER_HOSTNAME=MoscowLAN Server 2
+      - STV_NAME=MoscowLAN SourceTV 2
+      - PORT=27025
+      - CLIENT_PORT=27026
+      - STEAM_PORT=27028
+      - STV_PORT=27030
+      - RCON_PASSWORD=dsadsadsadsadsada
+      - DEMOS_TF_APIKEY=
+      - LOGS_TF_APIKEY=
+      - TICKRATE=200
+    command: "+sv_pure 2 +map cp_badlands +maxplayers 12 +sv_lan 1"
+    volumes:
+      - ./entrypoint.sh:/home/tf2/server/entrypoint.sh:ro
+    network_mode: host
 
-  #   ports:
-  #     - "27025:27025"
-  #     - "27026:27026"
-  #     - "27028:27028"
-  #     - "27030:27030"
-  #   network_mode: host
-
-
-  # # Server 3
-  # MskLanSrv3:
-  #   image: ghcr.io/melkortf/tf2-competitive
-  #   restart: always
-  #   environment:
-  #     - SERVER_HOSTNAME="MoscowLAN Server №3"
-  #     - PORT=27035
-  #     - CLIENT_PORT=27036
-  #     - STEAM_PORT=27038
-  #     - STV_PORT=27040
-  #     - RCON_PASSWORD=dsadsadsadsadsada
-  #     - DEMOS_TF_APIKEY=
-  #     - LOGS_TF_APIKEY=
-  #     - ENABLE_FAKE_IP=1
-
-  #   ports:
-  #     - "27035:27035"
-  #     - "27036:27036"
-  #     - "27038:27038"
-  #     - "27040:27040"
-  #   network_mode: host
+  # Server 3
+  MskLanSrv3:
+    image: ghcr.io/melkortf/tf2-competitive
+    restart: always
+    environment:
+      - SERVER_HOSTNAME=MoscowLAN Server 3
+      - STV_NAME=MoscowLAN SourceTV 3
+      - PORT=27035
+      - CLIENT_PORT=27036
+      - STEAM_PORT=27038
+      - STV_PORT=27040
+      - RCON_PASSWORD=dsadsadsadsadsada
+      - DEMOS_TF_APIKEY=
+      - LOGS_TF_APIKEY=
+      - TICKRATE=200
+    command: "+sv_pure 2 +map cp_badlands +maxplayers 12 +sv_lan 1"
+    volumes:
+      - ./entrypoint.sh:/home/tf2/server/entrypoint.sh:ro
+    network_mode: host
 
 
-  # # MGE Server
-  # MskLanMGE:
-  #   image: ghcr.io/melkortf/tf2-mge
-  #   restart: always
-  #   environment:
-  #     - SERVER_HOSTNAME="MoscowMGE"
-  #     - PORT=27045
-  #     - CLIENT_PORT=27046
-  #     - STEAM_PORT=27048
-  #     - STV_PORT=27050
-  #     - RCON_PASSWORD=dsadsadsadsadsada
-  #     - ENABLE_FAKE_IP=1
-
-  #   ports:
-  #     - "27045:27045"
-  #     - "27036:27046"
-  #     - "27038:27048"
-  #     - "27040:27040"
-  #   network_mode: host
-
-  # mumble-server:
-  #   image: mumblevoip/mumble-server:latest
-  #   container_name: mumble-server
-  #   hostname: mumble-server
-  #   restart: on-failure
-  #   ports:
-  #     - 64738:64738
-  #     - 64738:64738/udp
+  # MGE Server
+  MskLanMGE:
+    image: ghcr.io/melkortf/tf2-mge
+    restart: always
+    environment:
+      - SERVER_HOSTNAME=MoscowLAN MGE
+      - PORT=27045
+      - CLIENT_PORT=27046
+      - STEAM_PORT=27048
+      - STV_PORT=27050
+      - TICKRATE=200
+      - RCON_PASSWORD=dsadsadsadsadsada
+    command: "+sv_pure 2 +map cp_badlands +maxplayers 32 +sv_lan 1"
+    volumes:
+      - ./entrypoint.sh:/home/tf2/server/entrypoint.sh:ro
+    network_mode: host
