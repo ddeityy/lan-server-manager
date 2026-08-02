@@ -29,33 +29,29 @@ type ServerPanel struct {
 
 	tabItem        *container.TabItem
 	onTitleChanged func()
-	onChanged      func()
 }
 
 // NewServerPanel creates a new tab panel with default connection values.
-func NewServerPanel(window fyne.Window, title string, onTitleChanged, onChanged func()) *ServerPanel {
+func NewServerPanel(window fyne.Window, title string, onTitleChanged func()) *ServerPanel {
 	p := &ServerPanel{
 		window:         window,
 		onTitleChanged: onTitleChanged,
-		onChanged:      onChanged,
 	}
 
-	p.connection = newConnection(p.connect, p.disconnect, p.notifyChanged)
+	p.serverInfo = newServerInfo(
+		title,
+		p.copyConnectString,
+		p.copySTVString,
+		p.handleIntervalChanged,
+	)
+
+	p.connection = newConnection(p.connect, p.disconnect)
 	p.actions = newActions(
 		p.changeServerPassword,
 		p.changeLevel,
 		p.execConfig,
 		p.sendMessage,
 		p.sendCustomCommand,
-		p.handleMapSelected,
-		p.handleConfigSelected,
-		p.notifyChanged,
-	)
-	p.serverInfo = newServerInfo(
-		title,
-		p.copyConnectString,
-		p.copySTVString,
-		p.handleIntervalChanged,
 	)
 	p.players = newPlayerSection(p.confirmKickAll)
 
@@ -74,20 +70,6 @@ func (p *ServerPanel) updateTitle(title string) {
 	if p.onTitleChanged != nil {
 		p.onTitleChanged()
 	}
-}
-
-func (p *ServerPanel) notifyChanged() {
-	if p.onChanged != nil {
-		p.onChanged()
-	}
-}
-
-func (p *ServerPanel) handleMapSelected() {
-	p.notifyChanged()
-}
-
-func (p *ServerPanel) handleConfigSelected() {
-	p.notifyChanged()
 }
 
 func (p *ServerPanel) handleIntervalChanged() {

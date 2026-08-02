@@ -21,7 +21,7 @@ func main() {
 		cfg = config.Default()
 	}
 
-	manager := ui.NewManager(w, a.Preferences(), cfg)
+	manager := ui.NewManager(w, cfg)
 	w.SetContent(manager.Content())
 	w.ShowAndRun()
 }

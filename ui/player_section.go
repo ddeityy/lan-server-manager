@@ -11,10 +11,10 @@ import (
 )
 
 // Player list column minimum widths.
-var playerColumnWidths = []float32{50, 200, 160, 65, 55, 55, 80, 200, 75}
+var playerColumnWidths = []float32{50, 200, 160, 65, 55, 55, 80, 75}
 
 // Player list flex weights.
-var playerColumnFlex = []int{0, 3, 1, 0, 0, 0, 0, 3, 0}
+var playerColumnFlex = []int{0, 3, 1, 0, 0, 0, 0, 0}
 
 const playerColumnGap = float32(8)
 
@@ -23,6 +23,7 @@ type PlayerSection struct {
 	kickAllButton    *widget.Button
 	playerList       *widget.List
 	playersAccordion *widget.Accordion
+	statusLabel      *widget.Label
 }
 
 func newPlayerSection(onKickAll func()) *PlayerSection {
@@ -43,7 +44,6 @@ func newPlayerSection(onKickAll func()) *PlayerSection {
 				fixedLabel(),
 				fixedLabel(),
 				fixedLabel(),
-				fixedLabel(),
 				widget.NewButton("Kick", nil),
 			)
 		},
@@ -55,13 +55,18 @@ func newPlayerSection(onKickAll func()) *PlayerSection {
 	)
 	ps.playersAccordion.Open(0)
 
+	ps.statusLabel = widget.NewLabel("")
+
 	return ps
 }
 
-// View returns the kick-all button and player accordion.
+// View returns the kick-all button, player accordion, and status label.
 func (ps *PlayerSection) View() fyne.CanvasObject {
-	return container.NewBorder(ps.kickAllButton, nil, nil, nil, ps.playersAccordion)
+	return container.NewBorder(ps.kickAllButton, ps.statusLabel, nil, nil, ps.playersAccordion)
 }
+
+// SetStatus updates the status label at the bottom of the player section.
+func (ps *PlayerSection) SetStatus(text string) { ps.statusLabel.SetText(text) }
 
 // Update refreshes the player table and accordion title.
 func (ps *PlayerSection) Update(players []rcon.Player, kick func(int)) {
@@ -77,9 +82,8 @@ func (ps *PlayerSection) Update(players []rcon.Player, kick func(int)) {
 		row.Objects[4].(*widget.Label).SetText(fmt.Sprintf("%d", player.Ping))
 		row.Objects[5].(*widget.Label).SetText(fmt.Sprintf("%d", player.Loss))
 		row.Objects[6].(*widget.Label).SetText(player.State)
-		row.Objects[7].(*widget.Label).SetText(player.Address)
 
-		btn := row.Objects[8].(*widget.Button)
+		btn := row.Objects[7].(*widget.Button)
 		btn.SetText("Kick")
 		btn.OnTapped = func() { kick(player.UserID) }
 		btn.Enable()
@@ -190,7 +194,6 @@ func playerHeader() fyne.CanvasObject {
 		headerLabel("Ping"),
 		headerLabel("Loss"),
 		headerLabel("State"),
-		headerLabel("Adr"),
 		headerLabel(""),
 	)
 }

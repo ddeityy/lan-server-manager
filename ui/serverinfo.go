@@ -66,8 +66,6 @@ func (si *ServerInfo) View(connection fyne.CanvasObject) fyne.CanvasObject {
 	connectionTile := widget.NewCard("Connection", "", connection)
 	nameTile := widget.NewCard("Name", "", si.serverNameLabel)
 	mapTile := widget.NewCard("Map", "", si.mapLabel)
-	addressTile := widget.NewCard("Address", "", si.addressLabel)
-	sourceTVTile := widget.NewCard("SourceTV", "", si.sourceTVLabel)
 
 	header := container.NewHBox(
 		widget.NewLabelWithStyle("Server Info", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
@@ -80,9 +78,6 @@ func (si *ServerInfo) View(connection fyne.CanvasObject) fyne.CanvasObject {
 		connectionTile,
 		nameTile,
 		mapTile,
-		addressTile,
-		sourceTVTile,
-		si.statusLabel,
 	))
 }
 

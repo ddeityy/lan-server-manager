@@ -15,27 +15,25 @@ type Connection struct {
 	disconnectButton *widget.Button
 }
 
-func newConnection(onConnect, onDisconnect, onChanged func()) *Connection {
+func newConnection(onConnect, onDisconnect func()) *Connection {
 	c := &Connection{}
 
 	c.addressEntry = widget.NewEntry()
 	c.addressEntry.SetText("0.0.0.0:27015")
-	c.addressEntry.OnChanged = func(string) { onChanged() }
 
 	c.passwordEntry = widget.NewPasswordEntry()
 	c.passwordEntry.SetText("test")
-	c.passwordEntry.OnChanged = func(string) { onChanged() }
-
-	c.statusLabel = widget.NewLabel("")
 
 	c.connectButton = widget.NewButton("Connect", onConnect)
 	c.disconnectButton = widget.NewButton("Disconnect", onDisconnect)
 	c.disconnectButton.Disable()
 
+	c.statusLabel = widget.NewLabel("")
+
 	return c
 }
 
-// View returns the connection form and buttons as a single canvas object.
+// View returns the connection form, buttons, and status as a single canvas object.
 func (c *Connection) View() fyne.CanvasObject {
 	return container.NewVBox(
 		widget.NewForm(
@@ -59,7 +57,7 @@ func (c *Connection) SetAddress(addr string) { c.addressEntry.SetText(addr) }
 // SetPassword sets the RCON password field.
 func (c *Connection) SetPassword(pw string) { c.passwordEntry.SetText(pw) }
 
-// SetStatus updates the status label under the connection box.
+// SetStatus updates the status label at the bottom of the connection form.
 func (c *Connection) SetStatus(text string) { c.statusLabel.SetText(text) }
 
 // SetConnecting shows a connecting state and disables both buttons.
