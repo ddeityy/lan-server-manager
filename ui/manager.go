@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"fyne.io/fyne/v2"
@@ -11,27 +10,20 @@ import (
 	"lan-server-manager/config"
 )
 
-// savedServerTab stores one saved tab's connection details.
-type savedServerTab struct {
-	Address  string `json:"address"`
-	Password string `json:"password"`
-	Map      string `json:"map"`
-}
-
-// Manager owns the tabbed interface and persists open tabs.
+// Manager owns the tabbed interface and the server panels it contains.
 type Manager struct {
 	window     fyne.Window
 	tabs       *ServerTabs
 	panels     []*ServerPanel
 	plusTab    *container.TabItem
-	prefs      fyne.Preferences
 	tabCounter int
 }
 
-// NewManager creates the tabbed UI and restores any previously saved tabs.
-func NewManager(window fyne.Window, prefs fyne.Preferences, cfg config.Config) *Manager {
+// NewManager creates the tabbed UI and opens servers defined in the config,
+// or one empty tab if no servers are configured.
+func NewManager(window fyne.Window, cfg config.Config) *Manager {
 	appConfig = cfg
-	m := &Manager{window: window, prefs: prefs}
+	m := &Manager{window: window}
 	m.buildUI()
 	return m
 }
@@ -50,8 +42,8 @@ func (m *Manager) buildUI() {
 	m.loadTabs()
 }
 
-// loadTabs restores saved tab state, opens servers defined in the config, or
-// creates one empty tab if neither is available.
+// loadTabs opens servers defined in the config, or creates one empty tab if
+// no servers are configured.
 func (m *Manager) loadTabs() {
 	if len(appConfig.Servers) > 0 {
 		for _, preset := range appConfig.Servers {
@@ -67,55 +59,10 @@ func (m *Manager) loadTabs() {
 		for _, p := range m.panels {
 			p.connect()
 		}
-		m.saveTabs()
 		return
 	}
 
-	raw := m.prefs.String("tabs")
-	if raw == "" {
-		m.addPanel()
-		return
-	}
-
-	var saved []savedServerTab
-	if err := json.Unmarshal([]byte(raw), &saved); err != nil {
-		m.addPanel()
-		return
-	}
-
-	for _, t := range saved {
-		p := m.newPanel(m.nextTabTitle())
-		p.connection.SetAddress(t.Address)
-		p.connection.SetPassword(t.Password)
-		p.actions.SetMap(t.Map)
-		m.panels = append(m.panels, p)
-	}
-
-	if len(m.panels) == 0 {
-		m.addPanel()
-		return
-	}
-
-	m.rebuildTabs()
-	m.tabs.SelectIndex(0)
-}
-
-// saveTabs writes the current set of server tabs to preferences.
-func (m *Manager) saveTabs() {
-	saved := make([]savedServerTab, len(m.panels))
-	for i, p := range m.panels {
-		saved[i] = savedServerTab{
-			Address:  p.connection.Address(),
-			Password: p.connection.Password(),
-			Map:      p.actions.SelectedMap(),
-		}
-	}
-
-	raw, err := json.Marshal(saved)
-	if err != nil {
-		return
-	}
-	m.prefs.SetString("tabs", string(raw))
+	m.addPanel()
 }
 
 func (m *Manager) addPanel() {
@@ -123,7 +70,6 @@ func (m *Manager) addPanel() {
 	m.panels = append(m.panels, p)
 	m.rebuildTabs()
 	m.tabs.SelectIndex(len(m.panels) - 1)
-	m.saveTabs()
 }
 
 func (m *Manager) rebuildTabs() {
@@ -140,7 +86,6 @@ func (m *Manager) newPanel(title string) *ServerPanel {
 		m.window,
 		title,
 		func() { fyne.Do(func() { m.tabs.Refresh() }) },
-		m.saveTabs,
 	)
 }
 
@@ -184,6 +129,4 @@ func (m *Manager) closePanel(item *container.TabItem) {
 		target = 0
 	}
 	m.tabs.SelectIndex(target)
-
-	m.saveTabs()
 }

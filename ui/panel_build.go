@@ -33,21 +33,16 @@ func (l *minWidthLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 }
 
 func (p *ServerPanel) buildUI(title string) {
-	sidebar := container.NewVBox(
+	left := container.NewVBox(
+		p.serverInfo.View(p.connection.View()),
 		widget.NewCard("Actions", "", p.actions.View()),
 	)
 
-	horizontalSplit := container.NewHSplit(
-		container.New(&minWidthLayout{width: sidebarMinWidth}, sidebar),
-		p.serverInfo.View(p.connection.View()),
-	)
-	horizontalSplit.Offset = 0.35
-
-	verticalSplit := container.NewVSplit(
-		horizontalSplit,
+	split := container.NewHSplit(
+		container.New(&minWidthLayout{width: sidebarMinWidth}, left),
 		p.players.View(),
 	)
-	verticalSplit.Offset = 0.75
+	split.Offset = 0.65
 
-	p.tabItem = container.NewTabItem(title, verticalSplit)
+	p.tabItem = container.NewTabItem(title, split)
 }

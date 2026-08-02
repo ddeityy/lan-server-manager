@@ -114,21 +114,21 @@ func (p *ServerPanel) refresh() {
 
 func (p *ServerPanel) kick(userid int) {
 	if p.client == nil {
-		p.actions.SetStatus("Not connected")
+		p.players.SetStatus("Not connected")
 		return
 	}
 
-	p.actions.SetStatus(fmt.Sprintf("Kicking player %d...", userid))
+	p.players.SetStatus(fmt.Sprintf("Kicking player %d...", userid))
 
 	go func() {
 		err := p.client.Kick(userid)
 
 		fyne.Do(func() {
 			if err != nil {
-				p.actions.SetStatus("Kick failed: " + formatError(err))
+				p.players.SetStatus("Kick failed: " + formatError(err))
 				return
 			}
-			p.actions.SetStatus(fmt.Sprintf("Kicked player %d", userid))
+			p.players.SetStatus(fmt.Sprintf("Kicked player %d", userid))
 			p.refresh()
 		})
 	}()
@@ -150,19 +150,19 @@ func (p *ServerPanel) confirmKickAll() {
 
 func (p *ServerPanel) kickAll() {
 	if p.client == nil {
-		p.actions.SetStatus("Not connected")
+		p.players.SetStatus("Not connected")
 		return
 	}
 
 	p.players.kickAllButton.Disable()
-	p.actions.SetStatus("Kicking all players...")
+	p.players.SetStatus("Kicking all players...")
 
 	go func() {
 		players := p.serverInfo.LastInfo().Players
 
 		if len(players) == 0 {
 			fyne.Do(func() {
-				p.actions.SetStatus("No players to kick")
+				p.players.SetStatus("No players to kick")
 				p.players.kickAllButton.Enable()
 			})
 			return
@@ -177,9 +177,9 @@ func (p *ServerPanel) kickAll() {
 
 		fyne.Do(func() {
 			if lastErr != nil {
-				p.actions.SetStatus("Kick all finished with errors: " + formatError(lastErr))
+				p.players.SetStatus("Kick all finished with errors: " + formatError(lastErr))
 			} else {
-				p.actions.SetStatus("Kicked all players")
+				p.players.SetStatus("Kicked all players")
 			}
 			p.refresh()
 		})

@@ -26,30 +26,23 @@ func newActions(
 	onChangeLevel,
 	onExecConfig,
 	onSendMessage,
-	onSendCustom,
-	onMapSelected,
-	onConfigSelected,
-	onChanged func(),
+	onSendCustom func(),
 ) *Actions {
 	a := &Actions{}
 
 	a.serverPasswordEntry = widget.NewPasswordEntry()
-	a.serverPasswordEntry.OnChanged = func(string) { onChanged() }
 
 	a.mapSelect = widget.NewSelect(mapList(), func(value string) {
 		setMapSelection(a.mapSelect, value)
-		onMapSelected()
 	})
 	setMapSelection(a.mapSelect, mapList()[0])
 
-	a.configSelect = widget.NewSelect(configList(), func(string) { onConfigSelected() })
+	a.configSelect = widget.NewSelect(configList(), nil)
 	a.configSelect.SetSelected(configList()[0])
 
 	a.messageEntry = widget.NewEntry()
-	a.messageEntry.OnChanged = func(string) { onChanged() }
 
 	a.customCommandEntry = widget.NewEntry()
-	a.customCommandEntry.OnChanged = func(string) { onChanged() }
 
 	a.changePasswordButton = widget.NewButton("Send", onChangePassword)
 	a.changeLevelButton = widget.NewButton("Send", onChangeLevel)
@@ -63,7 +56,7 @@ func newActions(
 	return a
 }
 
-// View returns the actions form as a single canvas object.
+// View returns the actions form and status as a single canvas object.
 func (a *Actions) View() fyne.CanvasObject {
 	return container.NewVBox(
 		widget.NewLabelWithStyle("Change server password", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
@@ -97,7 +90,7 @@ func (a *Actions) SetEnabled(enabled bool) {
 	a.customCommandButton.Disable()
 }
 
-// SetStatus updates the status label under the actions box.
+// SetStatus updates the status label at the bottom of the actions card.
 func (a *Actions) SetStatus(text string) { a.statusLabel.SetText(text) }
 
 // SelectedMap returns the currently selected map.
