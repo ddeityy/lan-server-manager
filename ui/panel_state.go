@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"fyne.io/fyne/v2"
-
 	"lan-server-manager/rcon"
 )
 
@@ -28,12 +26,10 @@ func (p *ServerPanel) resetInfo() {
 
 func (p *ServerPanel) updateInfo(info rcon.ServerInfo, err error) {
 	if err != nil {
-		p.serverInfo.SetStatus("Refresh failed: " + formatError(err))
 		return
 	}
 
-	password := p.actions.ServerPassword()
-	p.serverInfo.SetInfo(info, p.connection.Address(), password)
+	p.serverInfo.SetInfo(info)
 
 	if p.pendingMapSync {
 		p.pendingMapSync = false
@@ -45,15 +41,4 @@ func (p *ServerPanel) updateInfo(info rcon.ServerInfo, err error) {
 	}
 
 	p.players.Update(info.Players, p.kick)
-	p.serverInfo.SetStatus("Connected")
-}
-
-func (p *ServerPanel) copyConnectString() {
-	fyne.CurrentApp().Clipboard().SetContent(p.serverInfo.connectLabel.Text)
-	p.serverInfo.SetStatus("Connect string copied")
-}
-
-func (p *ServerPanel) copySTVString() {
-	fyne.CurrentApp().Clipboard().SetContent(p.serverInfo.stvLabel.Text)
-	p.serverInfo.SetStatus("STV string copied")
 }

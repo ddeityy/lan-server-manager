@@ -50,8 +50,27 @@ func newPlayerSection(onKickAll func()) *PlayerSection {
 		func(_ widget.ListItemID, _ fyne.CanvasObject) {},
 	)
 
+	headerLabel := func(text string) *widget.Label {
+		lbl := widget.NewLabel(text)
+		lbl.Wrapping = fyne.TextWrapOff
+		lbl.Truncation = fyne.TextTruncateEllipsis
+		lbl.TextStyle = fyne.TextStyle{Bold: true}
+		return lbl
+	}
+	playerHeader := container.New(
+		&playerRowLayout{},
+		headerLabel("ID"),
+		headerLabel("Name"),
+		headerLabel("UniqueID"),
+		headerLabel("Conn"),
+		headerLabel("Ping"),
+		headerLabel("Loss"),
+		headerLabel("State"),
+		headerLabel(""),
+	)
+
 	ps.playersAccordion = widget.NewAccordion(
-		widget.NewAccordionItem("Players", container.NewBorder(playerHeader(), nil, nil, nil, ps.playerList)),
+		widget.NewAccordionItem("Players", container.NewBorder(playerHeader, nil, nil, nil, ps.playerList)),
 	)
 	ps.playersAccordion.Open(0)
 
@@ -174,26 +193,4 @@ func fixedLabel() *widget.Label {
 	lbl.Wrapping = fyne.TextWrapOff
 	lbl.Truncation = fyne.TextTruncateEllipsis
 	return lbl
-}
-
-func playerHeader() fyne.CanvasObject {
-	headerLabel := func(text string) *widget.Label {
-		lbl := widget.NewLabel(text)
-		lbl.Wrapping = fyne.TextWrapOff
-		lbl.Truncation = fyne.TextTruncateEllipsis
-		lbl.TextStyle = fyne.TextStyle{Bold: true}
-		return lbl
-	}
-
-	return container.New(
-		&playerRowLayout{},
-		headerLabel("ID"),
-		headerLabel("Name"),
-		headerLabel("UniqueID"),
-		headerLabel("Conn"),
-		headerLabel("Ping"),
-		headerLabel("Loss"),
-		headerLabel("State"),
-		headerLabel(""),
-	)
 }

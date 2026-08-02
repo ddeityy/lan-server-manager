@@ -2,7 +2,6 @@ package rcon
 
 import (
 	"fmt"
-	"net"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,87 +18,15 @@ type Player struct {
 	Ping      int
 	Loss      int
 	State     string
-	Address   string
-}
-
-// SourceTV holds the parsed SourceTV line from the status output.
-type SourceTV struct {
-	Address string
-	Delay   string
-	Local   string
-}
-
-// Address holds the addresses reported by the Source engine status command:
-// the reported UDP/IP endpoint and the local bind.
-type Address struct {
-	IP    string
-	Local string
 }
 
 // ServerInfo holds the parsed output of the rcon "status" command.
 type ServerInfo struct {
-	Hostname          string
-	ConfiguredAddress string
-	Address           Address
-	Map               string
-	SourceTV          SourceTV
-	HumanPlayers      int
-	MaxPlayers        int
-	Players           []Player
-}
-
-// GameConnectAddress returns the best address to give to TF2 clients that want
-// to connect to the game rcon.
-//
-// The reported UDP/IP address from status is preferred. Fallbacks are only
-// used when the server reports a placeholder such as ?.?.?.?:?.
-func (i ServerInfo) GameConnectAddress() string {
-	if AddressIsValid(i.Address.IP) {
-		return i.Address.IP
-	}
-	if AddressIsValid(i.Address.Local) {
-		return i.Address.Local
-	}
-	if AddressIsValid(i.ConfiguredAddress) {
-		return i.ConfiguredAddress
-	}
-	return ""
-}
-
-// STVConnectAddress returns the best SourceTV connect address.
-//
-// The server's reported STV address is preferred. If it is unavailable we
-// derive one from the configured game host and the STV port reported by status.
-func (i ServerInfo) STVConnectAddress() string {
-	if AddressIsValid(i.SourceTV.Address) {
-		return i.SourceTV.Address
-	}
-	if AddressIsValid(i.SourceTV.Local) {
-		return i.SourceTV.Local
-	}
-	if !AddressIsValid(i.ConfiguredAddress) {
-		return ""
-	}
-	host, _, err := net.SplitHostPort(i.ConfiguredAddress)
-	if err != nil {
-		return ""
-	}
-
-	stvPort := ""
-	if i.SourceTV.Local != "" {
-		if _, port, err := net.SplitHostPort(i.SourceTV.Local); err == nil && port != "" && !strings.Contains(port, "?") {
-			stvPort = port
-		}
-	}
-	if stvPort == "" && i.SourceTV.Address != "" {
-		if _, port, err := net.SplitHostPort(i.SourceTV.Address); err == nil && port != "" && !strings.Contains(port, "?") {
-			stvPort = port
-		}
-	}
-	if stvPort == "" {
-		return ""
-	}
-	return net.JoinHostPort(host, stvPort)
+	Hostname     string
+	Map          string
+	HumanPlayers int
+	MaxPlayers   int
+	Players      []Player
 }
 
 // Client wraps an RCON connection to a Source engine game rcon.
@@ -211,16 +138,6 @@ func (s *Client) Refresh() error {
 		return fmt.Errorf("parse status: %w", err)
 	}
 
-	info.ConfiguredAddress = s.address
-
-	// Fall back to the configured address if the server did not report a usable one.
-	if !AddressIsValid(info.Address.IP) {
-		info.Address.IP = s.address
-	}
-	if info.Address.Local == "" {
-		info.Address.Local = s.address
-	}
-
 	s.lastInfo = info
 	return nil
 }
@@ -236,6 +153,10 @@ func ParseStatus(status string) (ServerInfo, error) {
 
 	lines := strings.Split(status, "\n")
 
+	reHumans := regexp.MustCompile(`(\d+)\s+humans`)
+	reMax := regexp.MustCompile(`\((\d+)\s+max\)`)
+	rePlayer := regexp.MustCompile(`^#\s+(\d+)\s+"([^"]*)"\s+(\S+)\s+(\S+)\s+(\d+)\s+(\d+)\s+(\S+)`)
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -245,15 +166,17 @@ func ParseStatus(status string) (ServerInfo, error) {
 		switch {
 		case strings.HasPrefix(line, "hostname"):
 			if _, after, ok := strings.Cut(line, ":"); ok {
-				info.Hostname = stripQuotes(strings.TrimSpace(after))
-			}
-
-		case strings.HasPrefix(line, "udp/ip"):
-			if m := regexp.MustCompile(`udp/ip\s*:\s*(\S+(?::\d+)?)\s*(?:\(local:\s*([^)]+)\))?`).FindStringSubmatch(line); len(m) > 1 {
-				info.Address.IP = m[1]
-				if len(m) > 2 {
-					info.Address.Local = m[2]
+				s := strings.TrimSpace(after)
+				if len(s) >= 2 {
+					if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
+						s = s[1 : len(s)-1]
+					}
+				} else if len(s) >= 1 && (s[0] == '"' || s[0] == '\'') {
+					s = s[1:]
+				} else if len(s) >= 1 && (s[len(s)-1] == '"' || s[len(s)-1] == '\'') {
+					s = s[:len(s)-1]
 				}
+				info.Hostname = s
 			}
 
 		case strings.HasPrefix(line, "map"):
@@ -266,71 +189,19 @@ func ParseStatus(status string) (ServerInfo, error) {
 				info.Map = value
 			}
 
-		case strings.HasPrefix(line, "sourcetv"):
-			if m := regexp.MustCompile(`sourcetv:\s*([^,]+),\s*delay\s+([0-9.]+s)(?:\s*\(local:\s*([^)]+)\))?`).FindStringSubmatch(line); len(m) > 2 {
-				info.SourceTV.Address = m[1]
-				info.SourceTV.Delay = m[2]
-				if len(m) > 3 {
-					info.SourceTV.Local = m[3]
-				}
-			}
-
 		case strings.HasPrefix(line, "players"):
-			info.HumanPlayers, info.MaxPlayers = parsePlayersLine(line)
+			if m := reHumans.FindStringSubmatch(line); len(m) > 1 {
+				info.HumanPlayers, _ = strconv.Atoi(m[1])
+			}
+			if m := reMax.FindStringSubmatch(line); len(m) > 1 {
+				info.MaxPlayers, _ = strconv.Atoi(m[1])
+			}
 		}
 	}
-
-	info.Players = parsePlayersTable(lines)
-
-	return info, nil
-}
-
-func stripQuotes(s string) string {
-	s = strings.TrimSpace(s)
-	if len(s) >= 2 {
-		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
-			return s[1 : len(s)-1]
-		}
-	}
-	if len(s) >= 1 && (s[0] == '"' || s[0] == '\'') {
-		return s[1:]
-	}
-	if len(s) >= 1 && (s[len(s)-1] == '"' || s[len(s)-1] == '\'') {
-		return s[:len(s)-1]
-	}
-	return s
-}
-
-// AddressIsValid reports whether an address string is a real endpoint and not
-// an empty or unknown placeholder like "?.?.?.?:?".
-func AddressIsValid(s string) bool {
-	if s == "" {
-		return false
-	}
-	host, _, err := net.SplitHostPort(s)
-	if err != nil {
-		host = s
-	}
-	return !strings.Contains(host, "?")
-}
-
-func parsePlayersLine(line string) (humans, max int) {
-	// "players : 0 humans, 1 bots (25 max)"
-	if m := regexp.MustCompile(`(\d+)\s+humans`).FindStringSubmatch(line); len(m) > 1 {
-		humans, _ = strconv.Atoi(m[1])
-	}
-	if m := regexp.MustCompile(`\((\d+)\s+max\)`).FindStringSubmatch(line); len(m) > 1 {
-		max, _ = strconv.Atoi(m[1])
-	}
-	return
-}
-
-func parsePlayersTable(lines []string) []Player {
-	var players []Player
 
 	for _, line := range lines {
 		line = strings.TrimRight(line, "\r")
-		if m := regexp.MustCompile(`^#\s+(\d+)\s+"([^"]*)"\s+(\S+)\s+(\S+)\s+(\d+)\s+(\d+)\s+(\S+)(?:\s+(\S+))?`).FindStringSubmatch(line); m != nil {
+		if m := rePlayer.FindStringSubmatch(line); m != nil {
 			uniqueID := m[3]
 			// Skip bot entries.
 			if uniqueID == "BOT" {
@@ -339,11 +210,7 @@ func parsePlayersTable(lines []string) []Player {
 			id, _ := strconv.Atoi(m[1])
 			ping, _ := strconv.Atoi(m[5])
 			loss, _ := strconv.Atoi(m[6])
-			address := ""
-			if len(m) > 8 {
-				address = m[8]
-			}
-			players = append(players, Player{
+			info.Players = append(info.Players, Player{
 				UserID:    id,
 				Name:      m[2],
 				UniqueID:  uniqueID,
@@ -351,10 +218,9 @@ func parsePlayersTable(lines []string) []Player {
 				Ping:      ping,
 				Loss:      loss,
 				State:     m[7],
-				Address:   address,
 			})
 		}
 	}
 
-	return players
+	return info, nil
 }
