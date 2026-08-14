@@ -14,8 +14,8 @@ import (
 // ServerInfo holds the widgets that display parsed status output and the
 // controls that refresh it.
 type ServerInfo struct {
-	serverNameLabel      *widget.Label
-	mapLabel             *widget.Label
+	serverName           string
+	connectionCard       *widget.Card
 	refreshIntervalEntry *widget.Entry
 
 	lastInfo rcon.ServerInfo
@@ -25,25 +25,24 @@ func newServerInfo(
 	title string,
 	onIntervalChanged func(),
 ) *ServerInfo {
-	si := &ServerInfo{}
+	return &ServerInfo{
+		serverName:           title,
+		refreshIntervalEntry: newRefreshIntervalEntry(onIntervalChanged),
+	}
+}
 
-	si.serverNameLabel = widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	si.mapLabel = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-
-	si.refreshIntervalEntry = widget.NewEntry()
-	si.refreshIntervalEntry.SetText(fmt.Sprintf("%d", defaultRefreshInterval))
-	si.refreshIntervalEntry.SetPlaceHolder("seconds")
-	si.refreshIntervalEntry.OnSubmitted = func(string) { onIntervalChanged() }
-	si.refreshIntervalEntry.OnChanged = func(string) { onIntervalChanged() }
-
-	return si
+func newRefreshIntervalEntry(onIntervalChanged func()) *widget.Entry {
+	entry := widget.NewEntry()
+	entry.SetText(fmt.Sprintf("%d", defaultRefreshInterval))
+	entry.SetPlaceHolder("seconds")
+	entry.OnSubmitted = func(string) { onIntervalChanged() }
+	entry.OnChanged = func(string) { onIntervalChanged() }
+	return entry
 }
 
 // View returns the server info card as a single canvas object.
 func (si *ServerInfo) View(connection fyne.CanvasObject) fyne.CanvasObject {
-	connectionTile := widget.NewCard("Connection", "", connection)
-	nameTile := widget.NewCard("Name", "", si.serverNameLabel)
-	mapTile := widget.NewCard("Map", "", si.mapLabel)
+	si.connectionCard = widget.NewCard("Connection", "", connection)
 
 	header := container.NewHBox(
 		widget.NewLabelWithStyle("Server Info", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
@@ -53,20 +52,23 @@ func (si *ServerInfo) View(connection fyne.CanvasObject) fyne.CanvasObject {
 
 	return widget.NewCard("", "", container.NewVBox(
 		header,
-		connectionTile,
-		nameTile,
-		mapTile,
+		si.connectionCard,
 	))
 }
 
-// SetName updates the name displayed at the top of the server info card.
-func (si *ServerInfo) SetName(name string) { si.serverNameLabel.SetText(name) }
+// SetName updates the server name used in the connection card title.
+func (si *ServerInfo) SetName(name string) {
+	si.serverName = name
+	si.refreshTitle()
+}
 
 // Reset clears all displayed server info.
 func (si *ServerInfo) Reset() {
 	si.lastInfo = rcon.ServerInfo{}
-	si.serverNameLabel.SetText("")
-	si.mapLabel.SetText("")
+	si.serverName = ""
+	if si.connectionCard != nil {
+		si.connectionCard.SetTitle("Connection")
+	}
 }
 
 // RefreshInterval returns the refresh interval in seconds. Invalid values fall
@@ -86,7 +88,25 @@ func (si *ServerInfo) RefreshInterval() int {
 // SetInfo updates the displayed server info.
 func (si *ServerInfo) SetInfo(info rcon.ServerInfo) {
 	si.lastInfo = info
-	si.mapLabel.SetText(info.Map)
+	if info.Hostname != "" {
+		si.serverName = info.Hostname
+	}
+	si.refreshTitle()
+}
+
+func (si *ServerInfo) refreshTitle() {
+	if si.connectionCard == nil {
+		return
+	}
+	if si.serverName == "" && si.lastInfo.Map == "" {
+		si.connectionCard.SetTitle("Connection")
+		return
+	}
+	if si.lastInfo.Map == "" {
+		si.connectionCard.SetTitle(si.serverName)
+		return
+	}
+	si.connectionCard.SetTitle(si.serverName + " | " + si.lastInfo.Map)
 }
 
 // LastInfo returns the most recently displayed server information.

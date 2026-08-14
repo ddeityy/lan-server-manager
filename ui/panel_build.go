@@ -37,14 +37,13 @@ func (p *ServerPanel) buildUI(title string) {
 		p.serverInfo.View(p.connection.View()),
 		widget.NewCard("Actions", "", p.actions.View()),
 	)
+	leftScroll := container.NewVScroll(left)
+	leftScroll.SetMinSize(fyne.NewSize(sidebarMinWidth, 0))
 
 	right := container.NewVSplit(p.players.View(), p.logs.View())
 	right.Offset = 0.5
 
-	split := container.NewHSplit(
-		container.New(&minWidthLayout{width: sidebarMinWidth}, left),
-		right,
-	)
+	split := container.NewHSplit(leftScroll, right)
 	split.Offset = 0.65
 
 	p.tabItem = container.NewTabItem(title, split)

@@ -14,7 +14,7 @@ func main() {
 
 	a := app.NewWithID("com.lan.server-manager")
 	w := a.NewWindow("LAN TF2 Server Manager")
-	w.Resize(fyne.Size{Width: 1280, Height: 720})
+	w.Resize(fyne.Size{Width: 1600, Height: 900})
 
 	cfg, err := config.Load("config/config.toml")
 	if err != nil {
