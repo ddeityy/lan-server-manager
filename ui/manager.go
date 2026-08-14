@@ -8,6 +8,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"lan-server-manager/config"
+	"lan-server-manager/internal/logger"
+	"lan-server-manager/logs"
 )
 
 // Manager owns the tabbed interface and the server panels it contains.
@@ -22,6 +24,7 @@ type Manager struct {
 // NewManager creates the tabbed UI and opens servers defined in the config,
 // or one empty tab if no servers are configured.
 func NewManager(window fyne.Window, cfg config.Config) *Manager {
+	logger.Infof("Creating manager with %d configured servers", len(cfg.Servers))
 	appConfig = cfg
 	m := &Manager{window: window}
 	m.buildUI()
@@ -46,12 +49,20 @@ func (m *Manager) buildUI() {
 // no servers are configured.
 func (m *Manager) loadTabs() {
 	if len(appConfig.Servers) > 0 {
+		logger.Infof("Loading %d server tabs from config", len(appConfig.Servers))
 		for _, preset := range appConfig.Servers {
 			p := m.newPanel(m.nextTabTitle())
 			p.connection.SetAddress(preset.Address)
 			p.connection.SetPassword(preset.RCONPassword)
 			p.actions.SetServerPassword(preset.Password)
-			p.logs.SetContainerName(preset.ContainerName)
+			p.logs.SetTarget(logs.Target{
+				ContainerName: preset.ContainerName,
+				SSHHost:       preset.SSHHost,
+				SSHUser:       preset.SSHUser,
+				SSHPassword:   preset.SSHPassword,
+				SSHKeyPath:    preset.SSHKeyPath,
+			})
+			logger.Infof("Created panel for %s (container=%q ssh_host=%q)", preset.Address, preset.ContainerName, preset.SSHHost)
 			m.panels = append(m.panels, p)
 		}
 
@@ -63,11 +74,14 @@ func (m *Manager) loadTabs() {
 		return
 	}
 
+	logger.Infof("No configured servers, creating empty panel")
 	m.addPanel()
 }
 
 func (m *Manager) addPanel() {
-	p := m.newPanel(m.nextTabTitle())
+	title := m.nextTabTitle()
+	logger.Infof("Adding new panel %s", title)
+	p := m.newPanel(title)
 	m.panels = append(m.panels, p)
 	m.rebuildTabs()
 	m.tabs.SelectIndex(len(m.panels) - 1)
@@ -109,6 +123,7 @@ func (m *Manager) closePanel(item *container.TabItem) {
 	closedIndex := -1
 	for i, p := range m.panels {
 		if p.TabItem() == item {
+			logger.Infof("Closing panel %q", item.Text)
 			p.logs.Stop()
 			p.Disconnect()
 			m.panels = append(m.panels[:i], m.panels[i+1:]...)

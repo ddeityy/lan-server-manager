@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"lan-server-manager/internal/logger"
 	"lan-server-manager/logs"
 )
 
@@ -52,6 +53,7 @@ type LogViewer struct {
 	logScroll      *container.Scroll
 	logBox         *widget.Label
 
+	target     logs.Target
 	stream     *logs.Stream
 	lines      []string
 	in         chan string
@@ -85,25 +87,32 @@ func newLogViewer() *LogViewer {
 // View returns the logs card as a single canvas object.
 func (lv *LogViewer) View() fyne.CanvasObject {
 	return widget.NewCard("Logs", "", container.NewBorder(
-		container.NewBorder(
-			nil, nil,
-			widget.NewLabel("Container:"),
-			container.NewHBox(lv.watchButton, lv.clearButton, lv.downButton, lv.statusLabel),
-			container.New(&minWidthLayout{width: 240}, lv.containerEntry),
+		container.NewVBox(
+			container.NewBorder(
+				nil, nil,
+				widget.NewLabel("Container:"),
+				container.NewHBox(lv.watchButton, lv.clearButton, lv.downButton),
+				container.New(&minWidthLayout{width: 240}, lv.containerEntry),
+			),
+			lv.statusLabel,
 		),
 		nil, nil, nil,
 		lv.logScroll,
 	))
 }
 
-// SetContainerName sets the container name input field.
-func (lv *LogViewer) SetContainerName(name string) { lv.containerEntry.SetText(name) }
+// SetTarget stores the log tail target and pre-fills the container name entry.
+func (lv *LogViewer) SetTarget(target logs.Target) {
+	lv.target = target
+	lv.containerEntry.SetText(target.ContainerName)
+}
 
 // ContainerName returns the trimmed container name input value.
 func (lv *LogViewer) ContainerName() string { return strings.TrimSpace(lv.containerEntry.Text) }
 
 // Stop terminates any active log tail.
 func (lv *LogViewer) Stop() {
+	logger.Infof("log viewer stopping tail for %q", lv.ContainerName())
 	lv.mu.Lock()
 	stream := lv.stream
 	lv.stream = nil
@@ -132,18 +141,24 @@ func (lv *LogViewer) toggle() {
 		return
 	}
 
+	logger.Infof("log viewer starting tail for %q", lv.ContainerName())
 	if err := lv.start(); err != nil {
+		logger.Errorf("log viewer start failed: %v", err)
 		lv.statusLabel.SetText("Error: " + err.Error())
 	}
 }
 
 func (lv *LogViewer) start() error {
-	name := lv.ContainerName()
-	if name == "" {
+	target := lv.target
+	if target.ContainerName == "" {
+		target.ContainerName = lv.ContainerName()
+	}
+	if target.ContainerName == "" {
 		return fmt.Errorf("enter container name")
 	}
+	logger.Infof("log viewer connecting to logs for %q (ssh_host=%q)", target.ContainerName, target.SSHHost)
 
-	stream, err := logs.Tail(name)
+	stream, err := logs.Tail(target)
 	if err != nil {
 		return err
 	}
@@ -160,7 +175,12 @@ func (lv *LogViewer) start() error {
 	lv.mu.Unlock()
 
 	lv.watchButton.SetText("Stop")
-	lv.statusLabel.SetText("Watching...")
+	if target.SSHHost != "" {
+		lv.statusLabel.SetText("Watching (ssh " + target.SSHHost + ")...")
+		logger.Infof("log viewer watching %q via ssh %s", target.ContainerName, target.SSHHost)
+	} else {
+		lv.statusLabel.SetText("Watching...")
+	}
 
 	go lv.collect(in, clearCh, done)
 	go lv.route(stream, in, done)
@@ -217,6 +237,7 @@ func (lv *LogViewer) route(stream *logs.Stream, in chan<- string, done <-chan st
 			if !ok {
 				continue
 			}
+			logger.Errorf("log viewer tail error for %q: %v", lv.ContainerName(), err)
 			msg := err.Error()
 			fyne.Do(func() { lv.statusLabel.SetText("Error: " + msg) })
 		case <-done:

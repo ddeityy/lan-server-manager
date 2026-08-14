@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	gorcon "github.com/gorcon/rcon"
+
+	"lan-server-manager/internal/logger"
 )
 
 // Player holds the fields we care about from the status player table.
@@ -39,6 +41,7 @@ type Client struct {
 
 // NewClient creates a Client without connecting.
 func NewClient(address, password string) *Client {
+	logger.Infof("Created RCON client for %s", address)
 	return &Client{
 		address:  address,
 		password: password,
@@ -47,16 +50,20 @@ func NewClient(address, password string) *Client {
 
 // Connect dials the RCON endpoint and stores the connection.
 func (s *Client) Connect() error {
+	logger.Infof("Connecting to RCON at %s", s.address)
 	conn, err := gorcon.Dial(s.address, s.password)
 	if err != nil {
+		logger.Errorf("RCON dial to %s failed: %v", s.address, err)
 		return fmt.Errorf("rcon dial: %w", err)
 	}
 	s.conn = conn
+	logger.Infof("RCON connection to %s established", s.address)
 	return nil
 }
 
 // Close releases the RCON connection.
 func (s *Client) Close() error {
+	logger.Infof("Closing RCON connection to %s", s.address)
 	if s.conn != nil {
 		err := s.conn.Close()
 		s.conn = nil
@@ -67,27 +74,35 @@ func (s *Client) Close() error {
 
 // Kick removes a player from the server by their user ID.
 func (s *Client) Kick(userID int) error {
+	logger.Infof("Kicking player %d on %s", userID, s.address)
 	_, err := s.send(fmt.Sprintf("kickid %d", userID))
+	if err != nil {
+		logger.Errorf("Kick player %d on %s failed: %v", userID, s.address, err)
+	}
 	return err
 }
 
 // Execute sends an arbitrary RCON command to the rcon.
 func (s *Client) Execute(cmd string) error {
+	logger.Infof("Executing RCON command on %s: %s", s.address, cmd)
 	return s.execute(cmd)
 }
 
 // ChangeLevel sends the Source changelevel command for the given map.
 func (s *Client) ChangeLevel(level string) error {
+	logger.Infof("Changing level on %s to %s", s.address, level)
 	return s.execute("changelevel " + level)
 }
 
 // SetPassword sends the Source sv_password command for the given password.
 func (s *Client) SetPassword(password string) error {
+	logger.Infof("Setting server password on %s", s.address)
 	return s.execute("sv_password " + password)
 }
 
 // ExecConfig sends the Source exec command for the given config name.
 func (s *Client) ExecConfig(config string) error {
+	logger.Infof("Executing config on %s: %s", s.address, config)
 	return s.execute("exec " + config)
 }
 
@@ -99,21 +114,27 @@ func (s *Client) execute(cmd string) error {
 // send executes a single RCON command, reconnecting once on failure.
 func (s *Client) send(cmd string) (string, error) {
 	if strings.TrimSpace(cmd) == "" {
+		logger.Errorf("Refusing to send empty RCON command to %s", s.address)
 		return "", fmt.Errorf("empty command")
 	}
 	if s.conn == nil {
+		logger.Errorf("Not connected to %s", s.address)
 		return "", fmt.Errorf("not connected")
 	}
 
 	resp, err := s.conn.Execute(cmd)
 	if err != nil {
+		logger.Warnf("RCON command failed on %s, attempting reconnect: %v", s.address, err)
 		// Connection may have dropped; try once more with a fresh connection.
-		s.Close()
+		if err := s.Close(); err != nil {
+			logger.Warnf("RCON close on %s failed: %v", s.address, err)
+		}
 		if err := s.Connect(); err != nil {
 			return "", err
 		}
 		resp, err = s.conn.Execute(cmd)
 		if err != nil {
+			logger.Errorf("RCON command failed on %s after reconnect: %v", s.address, err)
 			return "", fmt.Errorf("rcon execute: %w", err)
 		}
 	}
@@ -123,11 +144,13 @@ func (s *Client) send(cmd string) (string, error) {
 // Refresh runs the rcon "status" command and parses the response.
 func (s *Client) Refresh() error {
 	if s.conn == nil {
+		logger.Infof("No RCON connection for %s, connecting before refresh", s.address)
 		if err := s.Connect(); err != nil {
 			return err
 		}
 	}
 
+	logger.Infof("Refreshing status on %s", s.address)
 	resp, err := s.send("status")
 	if err != nil {
 		return err
@@ -135,10 +158,12 @@ func (s *Client) Refresh() error {
 
 	info, err := ParseStatus(resp)
 	if err != nil {
+		logger.Errorf("Failed to parse status from %s: %v", s.address, err)
 		return fmt.Errorf("parse status: %w", err)
 	}
 
 	s.lastInfo = info
+	logger.Infof("Status refreshed on %s: hostname=%q map=%q players=%d/%d", s.address, info.Hostname, info.Map, info.HumanPlayers, info.MaxPlayers)
 	return nil
 }
 
@@ -149,6 +174,7 @@ func (s *Client) Info() ServerInfo {
 
 // ParseStatus extracts the fields we need from the Source engine status text.
 func ParseStatus(status string) (ServerInfo, error) {
+	logger.Infof("Parsing status output (%d bytes)", len(status))
 	var info ServerInfo
 
 	lines := strings.Split(status, "\n")
@@ -222,5 +248,6 @@ func ParseStatus(status string) (ServerInfo, error) {
 		}
 	}
 
+	logger.Infof("Parsed status: hostname=%q map=%q players=%d/%d human_players=%d", info.Hostname, info.Map, len(info.Players), info.MaxPlayers, info.HumanPlayers)
 	return info, nil
 }

@@ -6,6 +6,7 @@ import (
 
 	"fyne.io/fyne/v2"
 
+	"lan-server-manager/internal/logger"
 	"lan-server-manager/rcon"
 )
 
@@ -18,6 +19,7 @@ func (p *ServerPanel) startAutoRefresh() {
 	interval := time.Duration(p.serverInfo.RefreshInterval()) * time.Second
 	p.refreshTicker = time.NewTicker(interval)
 	p.refreshStop = make(chan struct{})
+	logger.Infof("%s: auto refresh started (interval %s)", p.title, interval)
 
 	go func() {
 		for {
@@ -36,6 +38,7 @@ func (p *ServerPanel) stopAutoRefresh() {
 	if p.refreshTicker != nil {
 		p.refreshTicker.Stop()
 		p.refreshTicker = nil
+		logger.Infof("%s: auto refresh stopped", p.title)
 	}
 	if p.refreshStop != nil {
 		close(p.refreshStop)
@@ -53,6 +56,7 @@ func (p *ServerPanel) doRefresh() (rcon.ServerInfo, error) {
 		return rcon.ServerInfo{}, fmt.Errorf("not connected")
 	}
 	if err := p.client.Refresh(); err != nil {
+		logger.Errorf("%s: refresh failed: %v", p.title, err)
 		return rcon.ServerInfo{}, err
 	}
 	return p.client.Info(), nil

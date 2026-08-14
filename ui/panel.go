@@ -16,6 +16,7 @@ const defaultRefreshInterval = 1
 type ServerPanel struct {
 	window fyne.Window
 	client *rcon.Client
+	title  string
 
 	connection *Connection
 	actions    *Actions
@@ -37,6 +38,7 @@ func NewServerPanel(window fyne.Window, title string, onTitleChanged func()) *Se
 	p := &ServerPanel{
 		window:         window,
 		onTitleChanged: onTitleChanged,
+		title:          title,
 	}
 
 	p.serverInfo = newServerInfo(
@@ -65,6 +67,7 @@ func (p *ServerPanel) TabItem() *container.TabItem {
 }
 
 func (p *ServerPanel) updateTitle(title string) {
+	p.title = title
 	p.tabItem.Text = title
 	p.serverInfo.SetName(title)
 	if p.onTitleChanged != nil {

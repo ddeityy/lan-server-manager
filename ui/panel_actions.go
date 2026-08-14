@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 
+	"lan-server-manager/internal/logger"
 	"lan-server-manager/rcon"
 )
 
@@ -21,6 +22,7 @@ func (p *ServerPanel) runAction(
 ) {
 	button.Disable()
 	p.actions.SetStatus(pending)
+	logger.Infof("%s: %s", p.title, pending)
 
 	go func() {
 		err := action()
@@ -28,23 +30,33 @@ func (p *ServerPanel) runAction(
 		fyne.Do(func() {
 			button.Enable()
 			if err != nil {
+				logger.Errorf("%s: %s: %v", p.title, failure, err)
 				p.actions.SetStatus(failure + ": " + formatError(err))
 				return
 			}
 			if onSuccess != nil {
 				onSuccess()
 			}
+			logger.Infof("%s: %s", p.title, success)
 			p.actions.SetStatus(success)
 		})
 	}()
 }
 
+func (p *ServerPanel) closeClient() {
+	if p.client == nil {
+		return
+	}
+	if err := p.client.Close(); err != nil {
+		logger.Warnf("%s: close connection failed: %v", p.title, err)
+	}
+	p.client = nil
+}
+
 // Disconnect closes the RCON connection and resets the panel UI.
 func (p *ServerPanel) Disconnect() {
-	if p.client != nil {
-		p.client.Close()
-		p.client = nil
-	}
+	logger.Infof("%s: disconnecting", p.title)
+	p.closeClient()
 	p.setConnected(false)
 	p.connection.SetStatus("Disconnected")
 	p.resetInfo()
@@ -55,25 +67,27 @@ func (p *ServerPanel) connect() {
 	password := p.connection.Password()
 	if address == "" {
 		p.connection.SetStatus("Address is required")
+		logger.Warnf("%s: connect attempted with empty address", p.title)
 		return
 	}
 
 	p.connection.SetConnecting()
+	logger.Infof("%s: connecting to %s", p.title, address)
 
 	go func() {
-		if p.client != nil {
-			p.client.Close()
-		}
+		p.closeClient()
 		p.client = rcon.NewClient(address, password)
 		err := p.client.Connect()
 
 		fyne.Do(func() {
 			if err != nil {
+				logger.Errorf("%s: connection to %s failed: %v", p.title, address, err)
 				p.connection.SetStatus("Connection failed: " + formatError(err))
 				p.setConnected(false)
 				return
 			}
 
+			logger.Infof("%s: connected to %s", p.title, address)
 			p.updateTitle(address)
 			p.setConnected(true)
 			p.refresh()
@@ -86,10 +100,8 @@ func (p *ServerPanel) connect() {
 }
 
 func (p *ServerPanel) disconnect() {
-	if p.client != nil {
-		p.client.Close()
-		p.client = nil
-	}
+	logger.Infof("%s: disconnecting", p.title)
+	p.closeClient()
 
 	fyne.Do(func() {
 		p.setConnected(false)
@@ -104,6 +116,7 @@ func (p *ServerPanel) refresh() {
 		return
 	}
 
+	logger.Infof("%s: refreshing status", p.title)
 	go func() {
 		info, err := p.doRefresh()
 		fyne.Do(func() { p.updateInfo(info, err) })
@@ -117,15 +130,18 @@ func (p *ServerPanel) kick(userid int) {
 	}
 
 	p.players.SetStatus(fmt.Sprintf("Kicking player %d...", userid))
+	logger.Infof("%s: kicking player %d", p.title, userid)
 
 	go func() {
 		err := p.client.Kick(userid)
 
 		fyne.Do(func() {
 			if err != nil {
+				logger.Errorf("%s: kick %d failed: %v", p.title, userid, err)
 				p.players.SetStatus("Kick failed: " + formatError(err))
 				return
 			}
+			logger.Infof("%s: kicked player %d", p.title, userid)
 			p.players.SetStatus(fmt.Sprintf("Kicked player %d", userid))
 			p.refresh()
 		})
@@ -154,6 +170,7 @@ func (p *ServerPanel) kickAll() {
 
 	p.players.kickAllButton.Disable()
 	p.players.SetStatus("Kicking all players...")
+	logger.Infof("%s: kicking all players", p.title)
 
 	go func() {
 		players := p.serverInfo.LastInfo().Players
@@ -175,8 +192,10 @@ func (p *ServerPanel) kickAll() {
 
 		fyne.Do(func() {
 			if lastErr != nil {
+				logger.Errorf("%s: kick all finished with errors: %v", p.title, lastErr)
 				p.players.SetStatus("Kick all finished with errors: " + formatError(lastErr))
 			} else {
+				logger.Infof("%s: kicked all players", p.title)
 				p.players.SetStatus("Kicked all players")
 			}
 			p.refresh()
@@ -194,6 +213,7 @@ func (p *ServerPanel) changeLevel() {
 		p.actions.SetStatus("Not connected")
 		return
 	}
+	logger.Infof("%s: changing level to %s", p.title, mapName)
 
 	p.runAction(
 		p.actions.changeLevelButton,
@@ -215,6 +235,7 @@ func (p *ServerPanel) changeServerPassword() {
 		p.actions.SetStatus("Not connected")
 		return
 	}
+	logger.Infof("%s: setting server password", p.title)
 
 	p.runAction(
 		p.actions.changePasswordButton,
@@ -236,6 +257,7 @@ func (p *ServerPanel) execConfig() {
 		p.actions.SetStatus("Not connected")
 		return
 	}
+	logger.Infof("%s: executing config %s", p.title, configName)
 
 	p.runAction(
 		p.actions.execConfigButton,
@@ -257,6 +279,7 @@ func (p *ServerPanel) sendMessage() {
 		p.actions.SetStatus("Not connected")
 		return
 	}
+	logger.Infof("%s: sending message", p.title)
 
 	p.runAction(
 		p.actions.sendMessageButton,
@@ -278,6 +301,7 @@ func (p *ServerPanel) sendCustomCommand() {
 		p.actions.SetStatus("Not connected")
 		return
 	}
+	logger.Infof("%s: sending custom command: %s", p.title, cmd)
 
 	p.runAction(
 		p.actions.customCommandButton,
