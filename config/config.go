@@ -13,9 +13,10 @@ var defaultConfig []byte
 
 // ServerPreset describes a server to open automatically on startup.
 type ServerPreset struct {
-	Address      string `toml:"address"`
-	RCONPassword string `toml:"rcon_password"`
-	Password     string `toml:"password"`
+	Address       string `toml:"address"`
+	RCONPassword  string `toml:"rcon_password"`
+	Password      string `toml:"password"`
+	ContainerName string `toml:"container_name"`
 }
 
 // Config holds runtime configuration loaded from a TOML file.

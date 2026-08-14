@@ -38,9 +38,12 @@ func (p *ServerPanel) buildUI(title string) {
 		widget.NewCard("Actions", "", p.actions.View()),
 	)
 
+	right := container.NewVSplit(p.players.View(), p.logs.View())
+	right.Offset = 0.5
+
 	split := container.NewHSplit(
 		container.New(&minWidthLayout{width: sidebarMinWidth}, left),
-		p.players.View(),
+		right,
 	)
 	split.Offset = 0.65
 

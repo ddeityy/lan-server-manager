@@ -51,6 +51,7 @@ func (m *Manager) loadTabs() {
 			p.connection.SetAddress(preset.Address)
 			p.connection.SetPassword(preset.RCONPassword)
 			p.actions.SetServerPassword(preset.Password)
+			p.logs.SetContainerName(preset.ContainerName)
 			m.panels = append(m.panels, p)
 		}
 
@@ -108,6 +109,7 @@ func (m *Manager) closePanel(item *container.TabItem) {
 	closedIndex := -1
 	for i, p := range m.panels {
 		if p.TabItem() == item {
+			p.logs.Stop()
 			p.Disconnect()
 			m.panels = append(m.panels[:i], m.panels[i+1:]...)
 			closedIndex = i

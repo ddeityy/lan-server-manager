@@ -21,6 +21,7 @@ type ServerPanel struct {
 	actions    *Actions
 	serverInfo *ServerInfo
 	players    *PlayerSection
+	logs       *LogViewer
 
 	refreshMutex   sync.Mutex
 	refreshTicker  *time.Ticker
@@ -52,6 +53,7 @@ func NewServerPanel(window fyne.Window, title string, onTitleChanged func()) *Se
 		p.sendCustomCommand,
 	)
 	p.players = newPlayerSection(p.confirmKickAll)
+	p.logs = newLogViewer()
 
 	p.buildUI(title)
 	return p
