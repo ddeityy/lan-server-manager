@@ -1,0 +1,61 @@
+maps = [
+    "cp_badlands",
+    "cp_granary_pro_ml_2026",
+    "cp_gullywash_f9_ml_2026",
+    "cp_metalworks_f7_ml_2026",
+    "cp_process_f12_ml_2026",
+    "cp_sunshine_ml_2026",
+    "koth_bagel_rc12_ml_2026",
+    "koth_clearcut_b18_ml_2026",
+    "koth_product_final_ml_2026",
+    "mge_oihguv_sucks_a12",
+]
+
+configs = [
+    "etf2l_6v6_5cp",
+    "etf2l_6v6_koth",
+]
+
+# Default MoscowLAN servers loaded from msk-lan-compose.yml.
+# When [[servers]] entries are present, the app opens a tab for each and
+# connects automatically. Fill ssh_host to tail Docker logs over SSH instead
+# of locally.
+[[servers]]
+address = "127.0.0.1:27015"
+rcon_password = "rconpassword"
+password = ""
+container_name = "MskLanSrv1"
+ssh_host = ""
+ssh_user = ""
+ssh_password = ""
+ssh_key_path = ""
+
+[[servers]]
+address = "127.0.0.1:27025"
+rcon_password = "rconpassword"
+password = ""
+container_name = "MskLanSrv2"
+ssh_host = ""
+ssh_user = ""
+ssh_password = ""
+ssh_key_path = ""
+
+[[servers]]
+address = "127.0.0.1:27035"
+rcon_password = "rconpassword"
+password = ""
+container_name = "MskLanSrv3"
+ssh_host = ""
+ssh_user = ""
+ssh_password = ""
+ssh_key_path = ""
+
+[[servers]]
+address = "127.0.0.1:27045"
+rcon_password = "rconpassword"
+password = ""
+container_name = "MskLanMGE"
+ssh_host = ""
+ssh_user = ""
+ssh_password = ""
+ssh_key_path = ""
