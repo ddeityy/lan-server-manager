@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -33,10 +34,46 @@ func isGameLogLine(line string) bool {
 		line[24] == ' '
 }
 
+func isChatLogLine(line string) bool {
+	return strings.Contains(line, `say "`)
+}
+
+func ParseSayLineConcat(line string) (string, error) {
+	re := regexp.MustCompile(`^.*:\s*"([^"<]*)<\d+>.*?<([^>]+)>"\s+say\s+"([^"]*)"`)
+	m := re.FindStringSubmatch(line)
+	if len(m) != 4 {
+		return "", fmt.Errorf("no match: %q", line)
+	}
+
+	logger.Info(m[0])
+	logger.Info(m[1])
+	logger.Info(m[2])
+	logger.Info(m[3])
+
+	name := m[1]
+	rawTeam := strings.ToLower(m[2])
+	msg := m[3]
+
+	var team string
+	switch rawTeam {
+	case "red":
+		team = "RED"
+	case "blue":
+		team = "BLU"
+	case "console":
+		team = "CON"
+	default:
+		return "", fmt.Errorf("unknown team %q in line: %q", m[2], line)
+	}
+
+	return team + ": " + name + ": " + msg, nil
+}
+
 // formatLogLine strips the leading "L <date> - " prefix and keeps the time
-// followed by the log message.
+// followed by the log message. Lines that are not game log lines (e.g. the
+// output of ParseSayLineConcat) are returned unchanged.
 func formatLogLine(line string) string {
-	if len(line) < logPrefixLen {
+	if !isGameLogLine(line) {
 		return line
 	}
 	return line[15:23] + ": " + line[logPrefixLen:]
@@ -86,7 +123,7 @@ func newLogViewer() *LogViewer {
 
 // View returns the logs card as a single canvas object.
 func (lv *LogViewer) View() fyne.CanvasObject {
-	return widget.NewCard("Logs", "", container.NewBorder(
+	return widget.NewCard("Chat", "", container.NewBorder(
 		container.NewVBox(
 			container.NewBorder(
 				nil, nil,
@@ -116,6 +153,7 @@ func (lv *LogViewer) Stop() {
 	lv.mu.Lock()
 	stream := lv.stream
 	lv.stream = nil
+	lv.clearCh = nil
 	lv.mu.Unlock()
 
 	if stream != nil {
@@ -164,7 +202,7 @@ func (lv *LogViewer) start() error {
 	}
 
 	in := make(chan string, maxLogLines)
-	clearCh := make(chan struct{})
+	clearCh := make(chan struct{}, 1)
 	done := make(chan struct{})
 
 	lv.mu.Lock()
@@ -189,9 +227,12 @@ func (lv *LogViewer) start() error {
 }
 
 func (lv *LogViewer) clear() {
-	if lv.clearCh != nil {
+	lv.mu.Lock()
+	clearCh := lv.clearCh
+	lv.mu.Unlock()
+	if clearCh != nil {
 		select {
-		case lv.clearCh <- struct{}{}:
+		case clearCh <- struct{}{}:
 		default:
 		}
 	}
@@ -225,9 +266,10 @@ func (lv *LogViewer) route(stream *logs.Stream, in chan<- string, done <-chan st
 			if !ok {
 				return
 			}
-			if !isGameLogLine(line) {
+			if !isGameLogLine(line) || !isChatLogLine(line) {
 				continue
 			}
+			line, _ = ParseSayLineConcat(line)
 			select {
 			case in <- formatLogLine(line):
 			case <-done:

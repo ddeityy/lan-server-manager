@@ -2,7 +2,7 @@
 Icon = "static/moscow.png"
 Name = "Server manager"
 Version = "0.1"
-Build = 5
+Build = 6
 
 [LinuxAndBSD]
 GenericName = "Server manager"

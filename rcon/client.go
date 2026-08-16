@@ -150,7 +150,7 @@ func (s *Client) Refresh() error {
 		}
 	}
 
-	logger.Infof("Refreshing status on %s", s.address)
+	// logger.Infof("Refreshing status on %s", s.address)
 	resp, err := s.send("status")
 	if err != nil {
 		return err
@@ -163,7 +163,7 @@ func (s *Client) Refresh() error {
 	}
 
 	s.lastInfo = info
-	logger.Infof("Status refreshed on %s: hostname=%q map=%q players=%d/%d", s.address, info.Hostname, info.Map, info.HumanPlayers, info.MaxPlayers)
+	// logger.Infof("Status refreshed on %s: hostname=%q map=%q players=%d/%d", s.address, info.Hostname, info.Map, info.HumanPlayers, info.MaxPlayers)
 	return nil
 }
 
@@ -174,7 +174,7 @@ func (s *Client) Info() ServerInfo {
 
 // ParseStatus extracts the fields we need from the Source engine status text.
 func ParseStatus(status string) (ServerInfo, error) {
-	logger.Infof("Parsing status output (%d bytes)", len(status))
+	// logger.Infof("Parsing status output (%d bytes)", len(status))
 	var info ServerInfo
 
 	lines := strings.Split(status, "\n")
@@ -248,6 +248,6 @@ func ParseStatus(status string) (ServerInfo, error) {
 		}
 	}
 
-	logger.Infof("Parsed status: hostname=%q map=%q players=%d/%d human_players=%d", info.Hostname, info.Map, len(info.Players), info.MaxPlayers, info.HumanPlayers)
+	// logger.Infof("Parsed status: hostname=%q map=%q players=%d/%d human_players=%d", info.Hostname, info.Map, len(info.Players), info.MaxPlayers, info.HumanPlayers)
 	return info, nil
 }

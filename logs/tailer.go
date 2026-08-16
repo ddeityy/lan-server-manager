@@ -12,9 +12,11 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/text/encoding/charmap"
 
 	"lan-server-manager/internal/logger"
 )
@@ -314,12 +316,26 @@ func streamLines(ctx context.Context, r io.Reader, out chan<- string) error {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		select {
-		case out <- scanner.Text():
+		case out <- normalizeText(scanner.Text()):
 		case <-ctx.Done():
 			return nil
 		}
 	}
 	return scanner.Err()
+}
+
+// normalizeText returns s as valid UTF-8. Lines that are not valid UTF-8 are
+// assumed to be windows-1251 (game servers often run with a legacy Russian
+// locale) and transcoded accordingly; otherwise the bytes are passed through.
+func normalizeText(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	decoded, err := charmap.Windows1251.NewDecoder().Bytes([]byte(s))
+	if err != nil {
+		return s
+	}
+	return string(decoded)
 }
 
 func streamErrors(ctx context.Context, r io.Reader, out chan<- error) error {

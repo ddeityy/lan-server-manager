@@ -50,10 +50,24 @@ func newActions(
 	a.sendMessageButton = widget.NewButton("Send", onSendMessage)
 	a.customCommandButton = widget.NewButton("Send", onSendCustom)
 
+	submitOnEnter(a.serverPasswordEntry, a.changePasswordButton, onChangePassword)
+	submitOnEnter(a.messageEntry, a.sendMessageButton, onSendMessage)
+	submitOnEnter(a.customCommandEntry, a.customCommandButton, onSendCustom)
+
 	a.statusLabel = widget.NewLabel("")
 
 	a.SetEnabled(false)
 	return a
+}
+
+// submitOnEnter fires handler when Enter is pressed in the entry, as long as
+// the paired button is enabled (mirrors clicking it).
+func submitOnEnter(entry *widget.Entry, button *widget.Button, handler func()) {
+	entry.OnSubmitted = func(string) {
+		if !button.Disabled() {
+			handler()
+		}
+	}
 }
 
 // View returns the actions form and status as a single canvas object.

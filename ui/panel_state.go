@@ -45,6 +45,6 @@ func (p *ServerPanel) updateInfo(info rcon.ServerInfo, err error) {
 		p.updateTitle(info.Hostname)
 	}
 
-	logger.Infof("%s: refreshed %d players on %s", p.title, len(info.Players), info.Map)
+	// logger.Infof("%s: refreshed %d players on %s", p.title, len(info.Players), info.Map)
 	p.players.Update(info.Players, p.kick)
 }
