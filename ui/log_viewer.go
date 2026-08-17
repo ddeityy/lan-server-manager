@@ -62,6 +62,8 @@ func ParseSayLineConcat(line string) (string, error) {
 		team = "BLU"
 	case "console":
 		team = "CON"
+	case "spectator":
+		team = "SPC"
 	default:
 		return "", fmt.Errorf("unknown team %q in line: %q", m[2], line)
 	}
