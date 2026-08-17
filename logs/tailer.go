@@ -47,10 +47,18 @@ func Tail(target Target) (*Stream, error) {
 	return tailSSH(target)
 }
 
-func tailLocal(containerName string) (*Stream, error) {
-	logger.Infof("Tailing container %q locally", containerName)
+func tailLocal(pattern string) (*Stream, error) {
+	logger.Infof("Tailing container matching %q locally", pattern)
+
+	containerID, err := resolveContainerIDLocal(pattern)
+	if err != nil {
+		logger.Errorf("Local container resolve failed for %q: %v", pattern, err)
+		return nil, err
+	}
+	logger.Infof("Resolved local container ID %s", containerID)
+
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, "docker", "logs", "-f", "--tail", "100", containerName)
+	cmd := exec.CommandContext(ctx, "docker", "logs", "-f", "--tail", "100", containerID)
 	return runCommand(ctx, cmd, cancel)
 }
 
@@ -218,7 +226,20 @@ func resolveContainerID(client *ssh.Client, pattern string) (string, error) {
 		return "", fmt.Errorf("docker ps: %w", err)
 	}
 
-	for _, line := range strings.Split(string(output), "\n") {
+	return findContainerByPattern(string(output), pattern)
+}
+
+func resolveContainerIDLocal(pattern string) (string, error) {
+	logger.Infof("Querying local docker ps for pattern %q", pattern)
+	out, err := exec.Command("docker", "ps", "--format", "{{.ID}} {{.Names}}").Output()
+	if err != nil {
+		return "", fmt.Errorf("docker ps: %w", err)
+	}
+	return findContainerByPattern(string(out), pattern)
+}
+
+func findContainerByPattern(output, pattern string) (string, error) {
+	for line := range strings.SplitSeq(output, "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 2 {
 			continue

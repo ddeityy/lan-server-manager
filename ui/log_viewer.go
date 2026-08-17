@@ -2,11 +2,13 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"strings"
 	"sync"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -27,12 +29,11 @@ type LogViewer struct {
 	downButton     *widget.Button
 	statusLabel    *widget.Label
 	logScroll      *container.Scroll
-	logBox         *widget.Label
+	logBox         *fyne.Container
 
 	target     logs.Target
 	stream     *logs.Stream
-	lines      []string
-	in         chan string
+	in         chan chatMessage
 	clearCh    chan struct{}
 	done       chan struct{}
 	autoScroll bool
@@ -47,11 +48,10 @@ func newLogViewer() *LogViewer {
 		clearButton:    widget.NewButton("Clear", nil),
 		downButton:     widget.NewButtonWithIcon("", theme.MenuDropDownIcon(), nil),
 		statusLabel:    widget.NewLabel(""),
-		logBox:         widget.NewLabel(""),
+		logBox:         container.NewVBox(),
 		autoScroll:     true,
 	}
 	lv.containerEntry.SetPlaceHolder("container_name")
-	lv.logBox.Wrapping = fyne.TextWrapBreak
 	lv.logScroll = container.NewScroll(lv.logBox)
 
 	lv.watchButton.OnTapped = lv.toggle
@@ -141,7 +141,7 @@ func (lv *LogViewer) start() error {
 		return err
 	}
 
-	in := make(chan string, maxLogLines)
+	in := make(chan chatMessage, maxLogLines)
 	clearCh := make(chan struct{}, 1)
 	done := make(chan struct{})
 
@@ -186,7 +186,7 @@ func (lv *LogViewer) scrollDown() {
 	})
 }
 
-func (lv *LogViewer) route(stream *logs.Stream, in chan<- string, done <-chan struct{}) {
+func (lv *LogViewer) route(stream *logs.Stream, in chan<- chatMessage, done <-chan struct{}) {
 	defer func() {
 		lv.mu.Lock()
 		if lv.stream == stream {
@@ -214,7 +214,7 @@ func (lv *LogViewer) route(stream *logs.Stream, in chan<- string, done <-chan st
 				continue
 			}
 			select {
-			case in <- lv.parser.formatLogLine(chat):
+			case in <- chat:
 			case <-done:
 				return
 			}
@@ -231,18 +231,18 @@ func (lv *LogViewer) route(stream *logs.Stream, in chan<- string, done <-chan st
 	}
 }
 
-func (lv *LogViewer) collect(in <-chan string, clearCh <-chan struct{}, done <-chan struct{}) {
+func (lv *LogViewer) collect(in <-chan chatMessage, clearCh <-chan struct{}, done <-chan struct{}) {
 	for {
 		select {
-		case line, ok := <-in:
+		case msg, ok := <-in:
 			if !ok {
 				return
 			}
-			lv.appendLine(line)
+			lv.appendLine(msg)
 		case <-clearCh:
 			fyne.Do(func() {
-				lv.lines = nil
-				lv.logBox.SetText("")
+				lv.logBox.Objects = nil
+				lv.logBox.Refresh()
 			})
 		case <-done:
 			return
@@ -250,7 +250,7 @@ func (lv *LogViewer) collect(in <-chan string, clearCh <-chan struct{}, done <-c
 	}
 }
 
-func (lv *LogViewer) appendLine(line string) {
+func (lv *LogViewer) appendLine(msg chatMessage) {
 	fyne.Do(func() {
 		// If the user has scrolled away from the bottom, pause auto-scroll.
 		if lv.autoScroll {
@@ -260,15 +260,32 @@ func (lv *LogViewer) appendLine(line string) {
 			}
 		}
 
-		lv.lines = append(lv.lines, line)
-		if len(lv.lines) > maxLogLines {
-			lv.lines = lv.lines[len(lv.lines)-maxLogLines:]
+		lineText := canvas.NewText(msg.String(), chatColor(msg.Team))
+		lineText.TextSize = theme.Size(theme.SizeNameText)
+		lv.logBox.Add(lineText)
+
+		for len(lv.logBox.Objects) > maxLogLines {
+			lv.logBox.Objects = lv.logBox.Objects[1:]
 		}
-		lv.logBox.SetText(strings.Join(lv.lines, "\n"))
+		lv.logBox.Refresh()
 
 		if lv.autoScroll {
 			lv.logScroll.ScrollToBottom()
 			lv.lastOffset = lv.logScroll.Offset.Y
 		}
 	})
+}
+
+func chatColor(team string) color.Color {
+	switch team {
+	case "RED":
+		return color.NRGBA{R: 167, G: 88, B: 75, A: 255}
+	case "BLU":
+		return color.NRGBA{R: 84, G: 125, B: 140, A: 255}
+	case "CON":
+		return color.NRGBA{R: 160, G: 160, B: 160, A: 255}
+	case "SPC":
+		return color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+	}
+	return theme.Color(theme.ColorNameForeground)
 }

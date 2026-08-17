@@ -10,15 +10,23 @@ import (
 // that game log lines start with.
 const logPrefixLen = 25
 
+// chatMessage holds the parsed pieces of a Source engine say line.
+type chatMessage struct {
+	Time    string
+	Team    string
+	Name    string
+	Message string
+}
+
 // logParser filters and formats Source engine log lines.
 type logParser struct {
-	chatMessageRegex *regexp.Regexp
+	sayRE *regexp.Regexp
 }
 
 // newLogParser creates a parser with a compiled chat-line regex.
 func newLogParser() *logParser {
 	return &logParser{
-		chatMessageRegex: regexp.MustCompile(`^.*:\s*"([^"<]*)<\d+>.*?<([^>]+)>"\s+say\s+"([^"]*)"`),
+		sayRE: regexp.MustCompile(`^.*:\s*"([^"<]*)<\d+>.*?<([^>]+)>"\s+say\s+"([^"]*)"`),
 	}
 }
 
@@ -41,21 +49,16 @@ func (p *logParser) isChatLogLine(line string) bool {
 	return strings.Contains(line, `say "`)
 }
 
-// parseChat extracts team, name, and message from a say line and returns a
-// formatted chat string. If the line does not match a say command, an error is
-// returned.
-func (p *logParser) parseChat(line string) (string, error) {
-	m := p.chatMessageRegex.FindStringSubmatch(line)
+// parseChat extracts team, name, and message from a say line. If the line does
+// not match a say command, an error is returned.
+func (p *logParser) parseChat(line string) (chatMessage, error) {
+	m := p.sayRE.FindStringSubmatch(line)
 	if len(m) != 4 {
-		return "", fmt.Errorf("no match: %q", line)
+		return chatMessage{}, fmt.Errorf("no match: %q", line)
 	}
 
-	name := m[1]
-	rawTeam := strings.ToLower(m[2])
-	msg := m[3]
-
 	var team string
-	switch rawTeam {
+	switch strings.ToLower(m[2]) {
 	case "red":
 		team = "RED"
 	case "blue":
@@ -65,10 +68,16 @@ func (p *logParser) parseChat(line string) (string, error) {
 	case "spectator":
 		team = "SPC"
 	default:
-		return "", fmt.Errorf("unknown team %q in line: %q", m[2], line)
+		return chatMessage{}, fmt.Errorf("unknown team %q in line: %q", m[2], line)
 	}
 
-	return team + ": " + name + ": " + msg, nil
+	msg := chatMessage{
+		Time:    line[15:23],
+		Team:    team,
+		Name:    m[1],
+		Message: m[3],
+	}
+	return msg, nil
 }
 
 // formatLogLine strips the leading "L <date> - " prefix and keeps the time
@@ -78,4 +87,9 @@ func (p *logParser) formatLogLine(line string) string {
 		return line
 	}
 	return line[15:23] + ": " + line[logPrefixLen:]
+}
+
+// chatDisplayText returns the plain-text representation of a chat message.
+func (m chatMessage) String() string {
+	return fmt.Sprintf("%s %s: %s: %s", m.Time, m.Team, m.Name, m.Message)
 }
