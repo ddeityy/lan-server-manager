@@ -54,6 +54,9 @@ func (m *Manager) loadTabs() {
 			p := m.newPanel(m.nextTabTitle())
 			p.connection.SetAddress(preset.Address)
 			p.connection.SetPassword(preset.RCONPassword)
+			p.connection.SetContainerName(preset.ContainerName)
+			p.connection.SetSSHHost(preset.SSHHost)
+			p.connection.SetSSHPassword(preset.SSHPassword)
 			p.actions.SetServerPassword(preset.Password)
 			p.logs.SetTarget(logs.Target{
 				ContainerName: preset.ContainerName,

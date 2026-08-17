@@ -24,7 +24,7 @@ type ServerPanel struct {
 	players    *PlayerSection
 	logs       *LogViewer
 
-	refreshMutex   sync.Mutex
+	rconMutex      sync.Mutex
 	refreshTicker  *time.Ticker
 	refreshStop    chan struct{}
 	pendingMapSync bool

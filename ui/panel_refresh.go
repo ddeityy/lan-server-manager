@@ -49,8 +49,8 @@ func (p *ServerPanel) stopAutoRefresh() {
 // doRefresh performs a synchronous status refresh. It serializes access to the
 // server so manual and automatic refreshes cannot overlap.
 func (p *ServerPanel) doRefresh() (rcon.ServerInfo, error) {
-	p.refreshMutex.Lock()
-	defer p.refreshMutex.Unlock()
+	p.rconMutex.Lock()
+	defer p.rconMutex.Unlock()
 
 	if p.client == nil {
 		return rcon.ServerInfo{}, fmt.Errorf("not connected")

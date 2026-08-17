@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image/color"
 	"math"
-	"strings"
 	"sync"
 
 	"fyne.io/fyne/v2"
@@ -19,42 +18,35 @@ import (
 
 const maxLogLines = 1000
 
-// LogViewer tails docker logs for a local container and displays them.
+// LogViewer tails docker logs for a container and displays chat messages.
 type LogViewer struct {
-	mu             sync.Mutex
-	parser         *logParser
-	containerEntry *widget.Entry
-	watchButton    *widget.Button
-	clearButton    *widget.Button
-	downButton     *widget.Button
-	statusLabel    *widget.Label
-	logScroll      *container.Scroll
-	logBox         *fyne.Container
+	mu          sync.Mutex
+	clearButton *widget.Button
+	downButton  *widget.Button
+	statusLabel *widget.Label
+	logScroll   *container.Scroll
+	logBox      *fyne.Container
 
-	target     logs.Target
-	stream     *logs.Stream
-	in         chan chatMessage
-	clearCh    chan struct{}
-	done       chan struct{}
+	target  logs.Target
+	stream  *logs.Stream
+	in      chan chatMessage
+	clearCh chan struct{}
+	done    chan struct{}
+
 	autoScroll bool
 	lastOffset float32
 }
 
 func newLogViewer() *LogViewer {
 	lv := &LogViewer{
-		parser:         newLogParser(),
-		containerEntry: widget.NewEntry(),
-		watchButton:    widget.NewButton("Watch", nil),
-		clearButton:    widget.NewButton("Clear", nil),
-		downButton:     widget.NewButtonWithIcon("", theme.MenuDropDownIcon(), nil),
-		statusLabel:    widget.NewLabel(""),
-		logBox:         container.NewVBox(),
-		autoScroll:     true,
+		clearButton: widget.NewButton("Clear", nil),
+		downButton:  widget.NewButtonWithIcon("", theme.MenuDropDownIcon(), nil),
+		statusLabel: widget.NewLabel(""),
+		logBox:      container.NewVBox(),
+		autoScroll:  true,
 	}
-	lv.containerEntry.SetPlaceHolder("container_name")
 	lv.logScroll = container.NewScroll(lv.logBox)
 
-	lv.watchButton.OnTapped = lv.toggle
 	lv.clearButton.OnTapped = lv.clear
 	lv.downButton.OnTapped = lv.scrollDown
 
@@ -64,32 +56,28 @@ func newLogViewer() *LogViewer {
 // View returns the logs card as a single canvas object.
 func (lv *LogViewer) View() fyne.CanvasObject {
 	return widget.NewCard("Chat", "", container.NewBorder(
-		container.NewVBox(
-			container.NewBorder(
-				nil, nil,
-				widget.NewLabel("Container:"),
-				container.NewHBox(lv.watchButton, lv.clearButton, lv.downButton),
-				container.New(&minWidthLayout{width: 240}, lv.containerEntry),
-			),
+		container.NewBorder(
+			nil, nil,
 			lv.statusLabel,
+			container.NewHBox(lv.clearButton, lv.downButton),
+			nil,
 		),
 		nil, nil, nil,
 		lv.logScroll,
 	))
 }
 
-// SetTarget stores the log tail target and pre-fills the container name entry.
+// SetTarget stores the log tail target.
 func (lv *LogViewer) SetTarget(target logs.Target) {
 	lv.target = target
-	lv.containerEntry.SetText(target.ContainerName)
 }
 
-// ContainerName returns the trimmed container name input value.
-func (lv *LogViewer) ContainerName() string { return strings.TrimSpace(lv.containerEntry.Text) }
+// Target returns the current log tail target.
+func (lv *LogViewer) Target() logs.Target { return lv.target }
 
-// Stop terminates any active log tail.
+// Stop terminates any active log tail. It does not clear displayed messages.
 func (lv *LogViewer) Stop() {
-	logger.Infof("log viewer stopping tail for %q", lv.ContainerName())
+	logger.Infof("log viewer stopping tail for %q", lv.target.ContainerName)
 	lv.mu.Lock()
 	stream := lv.stream
 	lv.stream = nil
@@ -97,7 +85,7 @@ func (lv *LogViewer) Stop() {
 	lv.mu.Unlock()
 
 	if stream != nil {
-		stream.Stop()
+		go stream.Stop()
 	}
 	if lv.done != nil {
 		close(lv.done)
@@ -105,38 +93,13 @@ func (lv *LogViewer) Stop() {
 	}
 }
 
-func (lv *LogViewer) toggle() {
-	lv.mu.Lock()
-	running := lv.stream != nil
-	lv.mu.Unlock()
-
-	if running {
-		lv.Stop()
-		fyne.Do(func() {
-			lv.watchButton.SetText("Watch")
-			lv.statusLabel.SetText("Stopped")
-		})
-		return
-	}
-
-	logger.Infof("log viewer starting tail for %q", lv.ContainerName())
-	if err := lv.start(); err != nil {
-		logger.Errorf("log viewer start failed: %v", err)
-		lv.statusLabel.SetText("Error: " + err.Error())
-	}
-}
-
 func (lv *LogViewer) start() error {
-	target := lv.target
-	if target.ContainerName == "" {
-		target.ContainerName = lv.ContainerName()
-	}
-	if target.ContainerName == "" {
+	if lv.target.ContainerName == "" {
 		return fmt.Errorf("enter container name")
 	}
-	logger.Infof("log viewer connecting to logs for %q (ssh_host=%q)", target.ContainerName, target.SSHHost)
+	logger.Infof("log viewer connecting to logs for %q (ssh_host=%q)", lv.target.ContainerName, lv.target.SSHHost)
 
-	stream, err := logs.Tail(target)
+	stream, err := logs.Tail(lv.target)
 	if err != nil {
 		return err
 	}
@@ -152,10 +115,9 @@ func (lv *LogViewer) start() error {
 	lv.done = done
 	lv.mu.Unlock()
 
-	lv.watchButton.SetText("Stop")
-	if target.SSHHost != "" {
-		lv.statusLabel.SetText("Watching (ssh " + target.SSHHost + ")...")
-		logger.Infof("log viewer watching %q via ssh %s", target.ContainerName, target.SSHHost)
+	if lv.target.SSHHost != "" {
+		lv.statusLabel.SetText("Watching (ssh " + lv.target.SSHHost + ")...")
+		logger.Infof("log viewer watching %q via ssh %s", lv.target.ContainerName, lv.target.SSHHost)
 	} else {
 		lv.statusLabel.SetText("Watching...")
 	}
@@ -188,14 +150,14 @@ func (lv *LogViewer) scrollDown() {
 
 func (lv *LogViewer) route(stream *logs.Stream, in chan<- chatMessage, done <-chan struct{}) {
 	defer func() {
+		logger.Infof("log viewer route ended for %q", lv.target.ContainerName)
 		lv.mu.Lock()
 		if lv.stream == stream {
 			lv.stream = nil
 		}
 		lv.mu.Unlock()
-		stream.Stop()
+		go stream.Stop()
 		fyne.Do(func() {
-			lv.watchButton.SetText("Watch")
 			lv.statusLabel.SetText("Stopped")
 		})
 	}()
@@ -206,10 +168,10 @@ func (lv *LogViewer) route(stream *logs.Stream, in chan<- chatMessage, done <-ch
 			if !ok {
 				return
 			}
-			if !lv.parser.isGameLogLine(line) || !lv.parser.isChatLogLine(line) {
+			if !isServerLogLine(line) || !isChatLogLine(line) {
 				continue
 			}
-			chat, err := lv.parser.parseChat(line)
+			chat, err := parseChatMessage(line)
 			if err != nil {
 				continue
 			}
@@ -222,7 +184,7 @@ func (lv *LogViewer) route(stream *logs.Stream, in chan<- chatMessage, done <-ch
 			if !ok {
 				continue
 			}
-			logger.Errorf("log viewer tail error for %q: %v", lv.ContainerName(), err)
+			logger.Errorf("log viewer tail error for %q: %v", lv.target.ContainerName, err)
 			msg := err.Error()
 			fyne.Do(func() { lv.statusLabel.SetText("Error: " + msg) })
 		case <-done:
@@ -252,7 +214,6 @@ func (lv *LogViewer) collect(in <-chan chatMessage, clearCh <-chan struct{}, don
 
 func (lv *LogViewer) appendLine(msg chatMessage) {
 	fyne.Do(func() {
-		// If the user has scrolled away from the bottom, pause auto-scroll.
 		if lv.autoScroll {
 			diff := math.Abs(float64(lv.logScroll.Offset.Y - lv.lastOffset))
 			if diff > 2 {
@@ -260,9 +221,12 @@ func (lv *LogViewer) appendLine(msg chatMessage) {
 			}
 		}
 
-		lineText := canvas.NewText(msg.String(), chatColor(msg.Team))
-		lineText.TextSize = theme.Size(theme.SizeNameText)
-		lv.logBox.Add(lineText)
+		row := container.NewHBox(
+			chatText(msg.Time+":", color.NRGBA{R: 255, G: 255, B: 255, A: 255}),
+			chatText(msg.Name, msg.Color),
+			chatText(": "+msg.Message, color.NRGBA{R: 255, G: 255, B: 255, A: 255}),
+		)
+		lv.logBox.Add(row)
 
 		for len(lv.logBox.Objects) > maxLogLines {
 			lv.logBox.Objects = lv.logBox.Objects[1:]
@@ -276,16 +240,8 @@ func (lv *LogViewer) appendLine(msg chatMessage) {
 	})
 }
 
-func chatColor(team string) color.Color {
-	switch team {
-	case "RED":
-		return color.NRGBA{R: 167, G: 88, B: 75, A: 255}
-	case "BLU":
-		return color.NRGBA{R: 84, G: 125, B: 140, A: 255}
-	case "CON":
-		return color.NRGBA{R: 160, G: 160, B: 160, A: 255}
-	case "SPC":
-		return color.NRGBA{R: 255, G: 255, B: 255, A: 255}
-	}
-	return theme.Color(theme.ColorNameForeground)
+func chatText(text string, c color.Color) *canvas.Text {
+	t := canvas.NewText(text, c)
+	t.TextSize = theme.Size(theme.SizeNameText)
+	return t
 }

@@ -25,7 +25,9 @@ func (p *ServerPanel) runAction(
 	logger.Infof("%s: %s", p.title, pending)
 
 	go func() {
+		p.rconMutex.Lock()
 		err := action()
+		p.rconMutex.Unlock()
 
 		fyne.Do(func() {
 			button.Enable()
@@ -57,6 +59,7 @@ func (p *ServerPanel) closeClient() {
 func (p *ServerPanel) Disconnect() {
 	logger.Infof("%s: disconnecting", p.title)
 	p.closeClient()
+	p.logs.Stop()
 	p.setConnected(false)
 	p.connection.SetStatus("Disconnected")
 	p.resetInfo()
@@ -91,6 +94,7 @@ func (p *ServerPanel) connect() {
 			p.updateTitle(address)
 			p.setConnected(true)
 			p.refresh()
+			p.startLogTail()
 
 			if p.actions.serverPasswordEntry.Text != "" {
 				p.changeServerPassword()
@@ -102,6 +106,7 @@ func (p *ServerPanel) connect() {
 func (p *ServerPanel) disconnect() {
 	logger.Infof("%s: disconnecting", p.title)
 	p.closeClient()
+	p.logs.Stop()
 
 	fyne.Do(func() {
 		p.setConnected(false)
@@ -109,6 +114,22 @@ func (p *ServerPanel) disconnect() {
 		p.resetInfo()
 		p.updateTitle("Server")
 	})
+}
+
+func (p *ServerPanel) startLogTail() {
+	logger.Infof("%s: auto-starting log tail", p.title)
+	p.logs.Stop()
+	target := p.logs.Target()
+	target.ContainerName = strings.TrimSpace(p.connection.ContainerName())
+	target.SSHHost = strings.TrimSpace(p.connection.SSHHost())
+	target.SSHPassword = p.connection.SSHPassword()
+	if target.SSHUser == "" {
+		target.SSHUser = "root"
+	}
+	p.logs.SetTarget(target)
+	if err := p.logs.start(); err != nil {
+		logger.Errorf("%s: failed to start log tail: %v", p.title, err)
+	}
 }
 
 func (p *ServerPanel) refresh() {
@@ -133,7 +154,9 @@ func (p *ServerPanel) kick(userid int) {
 	logger.Infof("%s: kicking player %d", p.title, userid)
 
 	go func() {
+		p.rconMutex.Lock()
 		err := p.client.Kick(userid)
+		p.rconMutex.Unlock()
 
 		fyne.Do(func() {
 			if err != nil {
@@ -183,12 +206,14 @@ func (p *ServerPanel) kickAll() {
 			return
 		}
 
+		p.rconMutex.Lock()
 		var lastErr error
 		for _, player := range players {
 			if err := p.client.Kick(player.UserID); err != nil {
 				lastErr = err
 			}
 		}
+		p.rconMutex.Unlock()
 
 		fyne.Do(func() {
 			if lastErr != nil {
