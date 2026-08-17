@@ -268,7 +268,7 @@ func (p *ServerPanel) changeServerPassword() {
 		"Server password updated",
 		"Set password failed",
 		func() error { return p.client.SetPassword(password) },
-		nil,
+		p.actions.ClearServerPassword,
 	)
 }
 
@@ -294,10 +294,10 @@ func (p *ServerPanel) execConfig() {
 	)
 }
 
-func (p *ServerPanel) sendMessage() {
-	msg := strings.TrimSpace(p.actions.messageEntry.Text)
+func (p *ServerPanel) sendMessageAction() {
+	msg := strings.TrimSpace(p.sendMessage.Text())
 	if msg == "" {
-		p.actions.SetStatus("Enter a message first")
+		p.sendMessage.SetEnabled(true)
 		return
 	}
 	if p.client == nil {
@@ -307,12 +307,12 @@ func (p *ServerPanel) sendMessage() {
 	logger.Infof("%s: sending message", p.title)
 
 	p.runAction(
-		p.actions.sendMessageButton,
+		p.sendMessage.button,
 		"Sending message...",
 		"Sent message",
 		"Send message failed",
 		func() error { return p.client.Execute("say " + msg) },
-		nil,
+		p.sendMessage.Clear,
 	)
 }
 
@@ -334,6 +334,6 @@ func (p *ServerPanel) sendCustomCommand() {
 		"Sent: "+cmd,
 		"Command failed",
 		func() error { return p.client.Execute(cmd) },
-		nil,
+		p.actions.ClearCustomCommand,
 	)
 }

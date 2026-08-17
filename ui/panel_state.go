@@ -10,6 +10,7 @@ func (p *ServerPanel) setConnected(connected bool) {
 		logger.Infof("%s: state -> connected", p.title)
 		p.connection.SetConnected(true)
 		p.actions.SetEnabled(true)
+		p.sendMessage.SetEnabled(true)
 		p.players.SetEnabled(true)
 		p.pendingMapSync = true
 		p.startAutoRefresh()
@@ -19,6 +20,7 @@ func (p *ServerPanel) setConnected(connected bool) {
 	p.stopAutoRefresh()
 	p.connection.SetConnected(false)
 	p.actions.SetEnabled(false)
+	p.sendMessage.SetEnabled(false)
 	p.players.SetEnabled(false)
 }
 

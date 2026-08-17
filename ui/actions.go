@@ -8,7 +8,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// Actions holds the widgets for RCON actions: password, map, config, message, and custom commands.
+// Actions holds the widgets for RCON actions: password, map, config, and custom commands.
 type Actions struct {
 	serverPasswordEntry  *widget.Entry
 	changePasswordButton *widget.Button
@@ -16,8 +16,6 @@ type Actions struct {
 	changeLevelButton    *widget.Button
 	configSelect         *widget.Select
 	execConfigButton     *widget.Button
-	messageEntry         *widget.Entry
-	sendMessageButton    *widget.Button
 	customCommandEntry   *widget.Entry
 	customCommandButton  *widget.Button
 	statusLabel          *widget.Label
@@ -27,7 +25,6 @@ func newActions(
 	onChangePassword,
 	onChangeLevel,
 	onExecConfig,
-	onSendMessage,
 	onSendCustom func(),
 ) *Actions {
 	a := &Actions{}
@@ -42,18 +39,14 @@ func newActions(
 	a.configSelect = widget.NewSelect(appConfig.ConfigsOrDefault(), nil)
 	a.configSelect.SetSelected(appConfig.ConfigsOrDefault()[0])
 
-	a.messageEntry = widget.NewEntry()
-
 	a.customCommandEntry = widget.NewEntry()
 
 	a.changePasswordButton = widget.NewButton("Send", onChangePassword)
 	a.changeLevelButton = widget.NewButton("Send", onChangeLevel)
 	a.execConfigButton = widget.NewButton("Send", onExecConfig)
-	a.sendMessageButton = widget.NewButton("Send", onSendMessage)
 	a.customCommandButton = widget.NewButton("Send", onSendCustom)
 
 	a.bindEnter(a.serverPasswordEntry, a.changePasswordButton, onChangePassword)
-	a.bindEnter(a.messageEntry, a.sendMessageButton, onSendMessage)
 	a.bindEnter(a.customCommandEntry, a.customCommandButton, onSendCustom)
 
 	a.statusLabel = widget.NewLabel("")
@@ -104,8 +97,6 @@ func (a *Actions) View() fyne.CanvasObject {
 		newActionRow(a.mapSelect, a.changeLevelButton),
 		widget.NewLabelWithStyle("Exec config", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		newActionRow(a.configSelect, a.execConfigButton),
-		widget.NewLabelWithStyle("Send message", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		newActionRow(a.messageEntry, a.sendMessageButton),
 		widget.NewLabelWithStyle("Custom command", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		newActionRow(a.customCommandEntry, a.customCommandButton),
 		a.statusLabel,
@@ -118,16 +109,20 @@ func (a *Actions) SetEnabled(enabled bool) {
 		a.changePasswordButton.Enable()
 		a.changeLevelButton.Enable()
 		a.execConfigButton.Enable()
-		a.sendMessageButton.Enable()
 		a.customCommandButton.Enable()
 		return
 	}
 	a.changePasswordButton.Disable()
 	a.changeLevelButton.Disable()
 	a.execConfigButton.Disable()
-	a.sendMessageButton.Disable()
 	a.customCommandButton.Disable()
 }
+
+// ClearServerPassword clears the server password entry.
+func (a *Actions) ClearServerPassword() { a.serverPasswordEntry.SetText("") }
+
+// ClearCustomCommand clears the custom command entry.
+func (a *Actions) ClearCustomCommand() { a.customCommandEntry.SetText("") }
 
 // SetStatus updates the status label at the bottom of the actions card.
 func (a *Actions) SetStatus(text string) { a.statusLabel.SetText(text) }

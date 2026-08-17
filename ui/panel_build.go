@@ -16,7 +16,11 @@ func (p *ServerPanel) buildUI(title string) {
 	leftScroll := container.NewVScroll(left)
 	leftScroll.SetMinSize(fyne.NewSize(sidebarMinWidth, 0))
 
-	right := container.NewVSplit(p.players.View(), p.logs.View())
+	chat := container.NewBorder(
+		nil, p.sendMessage.View(), nil, nil,
+		p.logs.View(),
+	)
+	right := container.NewVSplit(p.players.View(), chat)
 	right.Offset = 0.5
 
 	split := container.NewHSplit(leftScroll, right)

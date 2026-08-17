@@ -18,11 +18,12 @@ type ServerPanel struct {
 	client *rcon.Client
 	title  string
 
-	connection *Connection
-	actions    *Actions
-	serverInfo *ServerInfo
-	players    *PlayerSection
-	logs       *LogViewer
+	connection  *Connection
+	actions     *Actions
+	serverInfo  *ServerInfo
+	players     *PlayerSection
+	logs        *LogViewer
+	sendMessage *SendMessage
 
 	rconMutex      sync.Mutex
 	refreshTicker  *time.Ticker
@@ -51,9 +52,9 @@ func NewServerPanel(window fyne.Window, title string, onTitleChanged func()) *Se
 		p.changeServerPassword,
 		p.changeLevel,
 		p.execConfig,
-		p.sendMessage,
 		p.sendCustomCommand,
 	)
+	p.sendMessage = newSendMessage(p.sendMessageAction)
 	p.players = newPlayerSection(p.confirmKickAll)
 	p.logs = newLogViewer()
 

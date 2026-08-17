@@ -49,6 +49,10 @@ func (p *ServerPanel) formatError(err error) string {
 		return "Connection broken"
 	case errors.Is(err, io.EOF):
 		return "Connection closed unexpectedly"
+	case p.isNetworkError(err, "operation was canceled"):
+		return "Operation was canceled"
+	case p.isNetworkError(err, "context deadline exceeded"):
+		return "Server timed out"
 	}
 
 	return msg
