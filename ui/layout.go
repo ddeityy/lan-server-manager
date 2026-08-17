@@ -1,32 +1,9 @@
 package ui
 
 import (
-	"slices"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
-
-	"lan-server-manager/config"
 )
-
-// mapList returns the configured map list, falling back to the compiled-in
-// defaults when no runtime config is loaded.
-func mapList() []string {
-	if len(appConfig.Maps) > 0 {
-		return appConfig.Maps
-	}
-	return config.Default().Maps
-}
-
-// configList returns the configured exec config list, falling back to the
-// compiled-in defaults when no runtime config is loaded.
-func configList() []string {
-	if len(appConfig.Configs) > 0 {
-		return appConfig.Configs
-	}
-	return config.Default().Configs
-}
 
 const actionRowGap = float32(8)
 
@@ -65,25 +42,26 @@ func newActionRow(left, right fyne.CanvasObject) *fyne.Container {
 	return container.New(&actionRowLayout{}, left, right)
 }
 
-// setMapSelection sets the map dropdown's current value and renders the
-// remaining pool options so the currently selected map is not shown twice.
-func setMapSelection(sel *widget.Select, value string) {
-	maps := mapList()
-	valid := slices.Contains(maps, value)
-	if !valid {
-		sel.Selected = ""
-		sel.Options = append([]string(nil), maps...)
-		sel.Refresh()
+// minWidthLayout wraps a single child and enforces a minimum width.
+type minWidthLayout struct {
+	width float32
+}
+
+func (l *minWidthLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	if len(objects) == 0 {
 		return
 	}
+	objects[0].Move(fyne.NewPos(0, 0))
+	objects[0].Resize(size)
+}
 
-	opts := make([]string, 0, len(maps)-1)
-	for _, m := range maps {
-		if m != value {
-			opts = append(opts, m)
-		}
+func (l *minWidthLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	if len(objects) == 0 {
+		return fyne.NewSize(l.width, 0)
 	}
-	sel.Selected = value
-	sel.Options = opts
-	sel.Refresh()
+	s := objects[0].MinSize()
+	if s.Width < l.width {
+		s.Width = l.width
+	}
+	return s
 }

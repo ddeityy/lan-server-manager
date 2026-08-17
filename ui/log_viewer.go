@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"math"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -18,72 +17,10 @@ import (
 
 const maxLogLines = 1000
 
-// Game log lines start with "L <date> - <time>: ".
-const logPrefixLen = 25
-
-func isGameLogLine(line string) bool {
-	if len(line) < logPrefixLen {
-		return false
-	}
-	return line[0] == 'L' &&
-		line[1] == ' ' &&
-		line[12] == ' ' &&
-		line[13] == '-' &&
-		line[14] == ' ' &&
-		line[23] == ':' &&
-		line[24] == ' '
-}
-
-func isChatLogLine(line string) bool {
-	return strings.Contains(line, `say "`)
-}
-
-func ParseSayLineConcat(line string) (string, error) {
-	re := regexp.MustCompile(`^.*:\s*"([^"<]*)<\d+>.*?<([^>]+)>"\s+say\s+"([^"]*)"`)
-	m := re.FindStringSubmatch(line)
-	if len(m) != 4 {
-		return "", fmt.Errorf("no match: %q", line)
-	}
-
-	logger.Info(m[0])
-	logger.Info(m[1])
-	logger.Info(m[2])
-	logger.Info(m[3])
-
-	name := m[1]
-	rawTeam := strings.ToLower(m[2])
-	msg := m[3]
-
-	var team string
-	switch rawTeam {
-	case "red":
-		team = "RED"
-	case "blue":
-		team = "BLU"
-	case "console":
-		team = "CON"
-	case "spectator":
-		team = "SPC"
-	default:
-		return "", fmt.Errorf("unknown team %q in line: %q", m[2], line)
-	}
-
-	return team + ": " + name + ": " + msg, nil
-}
-
-// formatLogLine strips the leading "L <date> - " prefix and keeps the time
-// followed by the log message. Lines that are not game log lines (e.g. the
-// output of ParseSayLineConcat) are returned unchanged.
-func formatLogLine(line string) string {
-	if !isGameLogLine(line) {
-		return line
-	}
-	return line[15:23] + ": " + line[logPrefixLen:]
-}
-
 // LogViewer tails docker logs for a local container and displays them.
 type LogViewer struct {
 	mu             sync.Mutex
+	parser         *logParser
 	containerEntry *widget.Entry
 	watchButton    *widget.Button
 	clearButton    *widget.Button
@@ -104,6 +41,7 @@ type LogViewer struct {
 
 func newLogViewer() *LogViewer {
 	lv := &LogViewer{
+		parser:         newLogParser(),
 		containerEntry: widget.NewEntry(),
 		watchButton:    widget.NewButton("Watch", nil),
 		clearButton:    widget.NewButton("Clear", nil),
@@ -268,12 +206,15 @@ func (lv *LogViewer) route(stream *logs.Stream, in chan<- string, done <-chan st
 			if !ok {
 				return
 			}
-			if !isGameLogLine(line) || !isChatLogLine(line) {
+			if !lv.parser.isGameLogLine(line) || !lv.parser.isChatLogLine(line) {
 				continue
 			}
-			line, _ = ParseSayLineConcat(line)
+			chat, err := lv.parser.parseChat(line)
+			if err != nil {
+				continue
+			}
 			select {
-			case in <- formatLogLine(line):
+			case in <- lv.parser.formatLogLine(chat):
 			case <-done:
 				return
 			}

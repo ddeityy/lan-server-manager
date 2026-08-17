@@ -31,7 +31,7 @@ func (p *ServerPanel) runAction(
 			button.Enable()
 			if err != nil {
 				logger.Errorf("%s: %s: %v", p.title, failure, err)
-				p.actions.SetStatus(failure + ": " + formatError(err))
+				p.actions.SetStatus(failure + ": " + p.formatError(err))
 				return
 			}
 			if onSuccess != nil {
@@ -82,7 +82,7 @@ func (p *ServerPanel) connect() {
 		fyne.Do(func() {
 			if err != nil {
 				logger.Errorf("%s: connection to %s failed: %v", p.title, address, err)
-				p.connection.SetStatus("Connection failed: " + formatError(err))
+				p.connection.SetStatus("Connection failed: " + p.formatError(err))
 				p.setConnected(false)
 				return
 			}
@@ -92,7 +92,7 @@ func (p *ServerPanel) connect() {
 			p.setConnected(true)
 			p.refresh()
 
-			if p.actions.ServerPassword() != "" {
+			if p.actions.serverPasswordEntry.Text != "" {
 				p.changeServerPassword()
 			}
 		})
@@ -138,7 +138,7 @@ func (p *ServerPanel) kick(userid int) {
 		fyne.Do(func() {
 			if err != nil {
 				logger.Errorf("%s: kick %d failed: %v", p.title, userid, err)
-				p.players.SetStatus("Kick failed: " + formatError(err))
+				p.players.SetStatus("Kick failed: " + p.formatError(err))
 				return
 			}
 			logger.Infof("%s: kicked player %d", p.title, userid)
@@ -193,7 +193,7 @@ func (p *ServerPanel) kickAll() {
 		fyne.Do(func() {
 			if lastErr != nil {
 				logger.Errorf("%s: kick all finished with errors: %v", p.title, lastErr)
-				p.players.SetStatus("Kick all finished with errors: " + formatError(lastErr))
+				p.players.SetStatus("Kick all finished with errors: " + p.formatError(lastErr))
 			} else {
 				logger.Infof("%s: kicked all players", p.title)
 				p.players.SetStatus("Kicked all players")
@@ -226,7 +226,7 @@ func (p *ServerPanel) changeLevel() {
 }
 
 func (p *ServerPanel) changeServerPassword() {
-	password := p.actions.ServerPassword()
+	password := p.actions.serverPasswordEntry.Text
 	if strings.TrimSpace(password) == "" {
 		p.actions.SetStatus("Enter a password first")
 		return
@@ -270,7 +270,7 @@ func (p *ServerPanel) execConfig() {
 }
 
 func (p *ServerPanel) sendMessage() {
-	msg := strings.TrimSpace(p.actions.Message())
+	msg := strings.TrimSpace(p.actions.messageEntry.Text)
 	if msg == "" {
 		p.actions.SetStatus("Enter a message first")
 		return
@@ -292,7 +292,7 @@ func (p *ServerPanel) sendMessage() {
 }
 
 func (p *ServerPanel) sendCustomCommand() {
-	cmd := strings.TrimSpace(p.actions.CustomCommand())
+	cmd := strings.TrimSpace(p.actions.customCommandEntry.Text)
 	if cmd == "" {
 		p.actions.SetStatus("Enter a command first")
 		return

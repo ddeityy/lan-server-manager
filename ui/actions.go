@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"slices"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
@@ -32,13 +34,13 @@ func newActions(
 
 	a.serverPasswordEntry = widget.NewPasswordEntry()
 
-	a.mapSelect = widget.NewSelect(mapList(), func(value string) {
-		setMapSelection(a.mapSelect, value)
+	a.mapSelect = widget.NewSelect(appConfig.MapsOrDefault(), func(value string) {
+		a.setMapSelection(value)
 	})
-	setMapSelection(a.mapSelect, mapList()[0])
+	a.setMapSelection(appConfig.MapsOrDefault()[0])
 
-	a.configSelect = widget.NewSelect(configList(), nil)
-	a.configSelect.SetSelected(configList()[0])
+	a.configSelect = widget.NewSelect(appConfig.ConfigsOrDefault(), nil)
+	a.configSelect.SetSelected(appConfig.ConfigsOrDefault()[0])
 
 	a.messageEntry = widget.NewEntry()
 
@@ -50,9 +52,9 @@ func newActions(
 	a.sendMessageButton = widget.NewButton("Send", onSendMessage)
 	a.customCommandButton = widget.NewButton("Send", onSendCustom)
 
-	submitOnEnter(a.serverPasswordEntry, a.changePasswordButton, onChangePassword)
-	submitOnEnter(a.messageEntry, a.sendMessageButton, onSendMessage)
-	submitOnEnter(a.customCommandEntry, a.customCommandButton, onSendCustom)
+	a.bindEnter(a.serverPasswordEntry, a.changePasswordButton, onChangePassword)
+	a.bindEnter(a.messageEntry, a.sendMessageButton, onSendMessage)
+	a.bindEnter(a.customCommandEntry, a.customCommandButton, onSendCustom)
 
 	a.statusLabel = widget.NewLabel("")
 
@@ -60,14 +62,37 @@ func newActions(
 	return a
 }
 
-// submitOnEnter fires handler when Enter is pressed in the entry, as long as
+// bindEnter fires handler when Enter is pressed in the entry, as long as
 // the paired button is enabled (mirrors clicking it).
-func submitOnEnter(entry *widget.Entry, button *widget.Button, handler func()) {
+func (a *Actions) bindEnter(entry *widget.Entry, button *widget.Button, handler func()) {
 	entry.OnSubmitted = func(string) {
 		if !button.Disabled() {
 			handler()
 		}
 	}
+}
+
+// setMapSelection sets the map dropdown's current value and renders the
+// remaining pool options so the currently selected map is not shown twice.
+func (a *Actions) setMapSelection(value string) {
+	maps := appConfig.MapsOrDefault()
+	valid := slices.Contains(maps, value)
+	if !valid {
+		a.mapSelect.Selected = ""
+		a.mapSelect.Options = append([]string(nil), maps...)
+		a.mapSelect.Refresh()
+		return
+	}
+
+	opts := make([]string, 0, len(maps)-1)
+	for _, m := range maps {
+		if m != value {
+			opts = append(opts, m)
+		}
+	}
+	a.mapSelect.Selected = value
+	a.mapSelect.Options = opts
+	a.mapSelect.Refresh()
 }
 
 // View returns the actions form and status as a single canvas object.
@@ -110,9 +135,6 @@ func (a *Actions) SetStatus(text string) { a.statusLabel.SetText(text) }
 // SelectedMap returns the currently selected map.
 func (a *Actions) SelectedMap() string { return a.mapSelect.Selected }
 
-// SetMap sets the map dropdown selection while avoiding duplicate entries.
-func (a *Actions) SetMap(value string) { setMapSelection(a.mapSelect, value) }
-
 // SelectedConfig returns the currently selected exec config.
 func (a *Actions) SelectedConfig() string { return a.configSelect.Selected }
 
@@ -121,12 +143,3 @@ func (a *Actions) ServerPassword() string { return a.serverPasswordEntry.Text }
 
 // SetServerPassword sets the server password field value.
 func (a *Actions) SetServerPassword(password string) { a.serverPasswordEntry.SetText(password) }
-
-// Message returns the send-message field value.
-func (a *Actions) Message() string { return a.messageEntry.Text }
-
-// CustomCommand returns the custom command field value, trimmed.
-func (a *Actions) CustomCommand() string {
-	// TrimSpace is performed by callers; expose raw if needed for display.
-	return a.customCommandEntry.Text
-}

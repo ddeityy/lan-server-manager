@@ -37,7 +37,7 @@ func (p *ServerPanel) updateInfo(info rcon.ServerInfo, err error) {
 
 	if p.pendingMapSync {
 		p.pendingMapSync = false
-		p.actions.SetMap(info.Map)
+		p.actions.setMapSelection(info.Map)
 	}
 
 	if info.Hostname != "" && info.Hostname != p.title {

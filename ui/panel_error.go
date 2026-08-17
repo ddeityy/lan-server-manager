@@ -11,7 +11,7 @@ import (
 
 // formatError converts low-level network and RCON errors into short, readable
 // status messages. If the error is not recognized, the original text is returned.
-func formatError(err error) string {
+func (p *ServerPanel) formatError(err error) string {
 	if err == nil {
 		return ""
 	}
@@ -35,17 +35,17 @@ func formatError(err error) string {
 	}
 
 	switch {
-	case isNetworkError(err, "connection refused"):
+	case p.isNetworkError(err, "connection refused"):
 		return "Connection refused"
-	case isNetworkError(err, "connection reset by peer"):
+	case p.isNetworkError(err, "connection reset by peer"):
 		return "Connection reset by peer"
-	case isNetworkError(err, "no route to host"):
+	case p.isNetworkError(err, "no route to host"):
 		return "No route to host"
-	case isNetworkError(err, "network is unreachable"):
+	case p.isNetworkError(err, "network is unreachable"):
 		return "Network unreachable"
-	case isNetworkError(err, "i/o timeout"):
+	case p.isNetworkError(err, "i/o timeout"):
 		return "Server timed out"
-	case isNetworkError(err, "broken pipe"):
+	case p.isNetworkError(err, "broken pipe"):
 		return "Connection broken"
 	case errors.Is(err, io.EOF):
 		return "Connection closed unexpectedly"
@@ -54,7 +54,7 @@ func formatError(err error) string {
 	return msg
 }
 
-func isNetworkError(err error, text string) bool {
+func (p *ServerPanel) isNetworkError(err error, text string) bool {
 	if _, ok := errors.AsType[net.Error](err); ok {
 		return true
 	}

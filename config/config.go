@@ -56,6 +56,24 @@ func Load(path string) (Config, error) {
 	return LoadBytes(data)
 }
 
+// MapsOrDefault returns the configured map list, falling back to the
+// compiled-in defaults when empty.
+func (c Config) MapsOrDefault() []string {
+	if len(c.Maps) > 0 {
+		return c.Maps
+	}
+	return Default().Maps
+}
+
+// ConfigsOrDefault returns the configured exec config list, falling back to
+// the compiled-in defaults when empty.
+func (c Config) ConfigsOrDefault() []string {
+	if len(c.Configs) > 0 {
+		return c.Configs
+	}
+	return Default().Configs
+}
+
 // LoadBytes parses TOML data and applies defaults when a list is empty.
 func LoadBytes(data []byte) (Config, error) {
 	var c Config
