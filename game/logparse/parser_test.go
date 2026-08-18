@@ -167,6 +167,23 @@ func TestParseDisconnected(t *testing.T) {
 	}
 }
 
+func TestParseServerCVar(t *testing.T) {
+	line := `L 08/18/2026 - 11:20:46: server_cvar: "mp_winlimit" "4"`
+	evt, ok := Parse(line)
+	if !ok {
+		t.Fatalf("expected parse success")
+	}
+	if evt.Type != EventCVar {
+		t.Errorf("type = %d, want EventCVar", evt.Type)
+	}
+	if evt.Data["cvar"] != "mp_winlimit" {
+		t.Errorf("cvar = %q, want mp_winlimit", evt.Data["cvar"])
+	}
+	if evt.Data["value"] != "4" {
+		t.Errorf("value = %q, want 4", evt.Data["value"])
+	}
+}
+
 func TestParseMapChange(t *testing.T) {
 	line := `-------- Mapchange to cp_badlands --------`
 	evt, ok := Parse(line)

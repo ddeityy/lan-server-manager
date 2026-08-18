@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
 
+	"lan-server-manager/game/logparse"
 	"lan-server-manager/game/scoreboard"
 	"lan-server-manager/logger"
 	"lan-server-manager/rcon"
@@ -18,7 +19,7 @@ func (p *ServerPanel) runAction(
 	button *widget.Button,
 	pending, success, failure string,
 	action func() error,
-	onSuccess func(),
+	onSuccess, onFailure func(),
 ) {
 	button.Disable()
 	p.actions.SetStatus(pending)
@@ -34,6 +35,9 @@ func (p *ServerPanel) runAction(
 			if err != nil {
 				logger.Errorf("%s: %s: %v", p.title, failure, err)
 				p.actions.SetStatus(failure + ": " + p.formatError(err))
+				if onFailure != nil {
+					onFailure()
+				}
 				return
 			}
 			if onSuccess != nil {
@@ -95,6 +99,11 @@ func (p *ServerPanel) connect() {
 			p.setConnected(true)
 			p.refresh()
 			p.startLogTail()
+			go func() {
+				p.rconMutex.Lock()
+				defer p.rconMutex.Unlock()
+				p.queryTrackedCVars()
+			}()
 
 			if p.actions.serverPasswordEntry.Text != "" {
 				p.changeServerPassword()
@@ -114,6 +123,36 @@ func (p *ServerPanel) disconnect() {
 		p.resetInfo()
 		p.updateTitle("Server")
 	})
+}
+
+func (p *ServerPanel) queryTrackedCVars() {
+	if p.client == nil {
+		return
+	}
+	for _, name := range TrackedCVarNames() {
+		resp, err := p.client.ExecuteWithResponse(name)
+		if err != nil {
+			logger.Warnf("%s: query %s failed: %v", p.title, name, err)
+			continue
+		}
+		for _, line := range strings.Split(resp, "\n") {
+			line = strings.TrimSpace(line)
+			cvarName, value, ok := logparse.ParseCVar(line)
+			if !ok {
+				continue
+			}
+			logger.Infof("%s: queried %s = %s", p.title, cvarName, value)
+			p.applyCVar(cvarName, value)
+		}
+	}
+}
+
+func (p *ServerPanel) applyCVar(name, value string) {
+	p.scoreboard.Apply(logparse.Event{
+		Type: logparse.EventCVar,
+		Data: map[string]string{"cvar": name, "value": value},
+	})
+	fyne.Do(func() { p.scoreboardView.SetCVar(name, value) })
 }
 
 func (p *ServerPanel) startLogTail() {
@@ -163,6 +202,7 @@ func (p *ServerPanel) changeLevel() {
 		"Changelevel failed",
 		func() error { return p.client.ChangeLevel(mapName) },
 		nil,
+		nil,
 	)
 }
 
@@ -185,6 +225,7 @@ func (p *ServerPanel) changeServerPassword() {
 		"Set password failed",
 		func() error { return p.client.SetPassword(password) },
 		p.actions.ClearServerPassword,
+		nil,
 	)
 }
 
@@ -200,13 +241,23 @@ func (p *ServerPanel) execConfig() {
 	}
 	logger.Infof("%s: executing config %s", p.title, configName)
 
+	pendingCVars := TrackedCVarNames()
+	p.scoreboardView.MarkCVarsPending(pendingCVars...)
+
 	p.runAction(
 		p.actions.execConfigButton,
 		"Executing config "+configName+"...",
 		"Executed config "+configName,
 		"Exec config failed",
 		func() error { return p.client.ExecConfig(configName) },
-		nil,
+		func() {
+			go func() {
+				p.rconMutex.Lock()
+				defer p.rconMutex.Unlock()
+				p.queryTrackedCVars()
+			}()
+		},
+		func() { p.scoreboardView.ClearCVarsPending(pendingCVars...) },
 	)
 }
 
@@ -229,6 +280,7 @@ func (p *ServerPanel) sendMessageAction() {
 		"Send message failed",
 		func() error { return p.client.Execute("say " + msg) },
 		p.sendMessage.Clear,
+		nil,
 	)
 }
 
@@ -272,6 +324,11 @@ func (p *ServerPanel) sendCustomCommand() {
 	}
 	logger.Infof("%s: sending custom command: %s", p.title, cmd)
 
+	pendingCVars := trackedCVarNamesFromCommand(cmd)
+	if len(pendingCVars) > 0 {
+		p.scoreboardView.MarkCVarsPending(pendingCVars...)
+	}
+
 	p.runAction(
 		p.actions.customCommandButton,
 		"Sending: "+cmd,
@@ -279,5 +336,6 @@ func (p *ServerPanel) sendCustomCommand() {
 		"Command failed",
 		func() error { return p.client.Execute(cmd) },
 		p.actions.ClearCustomCommand,
+		func() { p.scoreboardView.ClearCVarsPending(pendingCVars...) },
 	)
 }

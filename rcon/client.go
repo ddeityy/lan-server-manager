@@ -88,6 +88,14 @@ func (s *Client) Execute(cmd string) error {
 	return s.execute(cmd)
 }
 
+// ExecuteWithResponse sends an arbitrary RCON command and returns the server's
+// text response. Useful for commands like "mp_timelimit" whose output is only
+// returned over RCON and not echoed to the console log.
+func (s *Client) ExecuteWithResponse(cmd string) (string, error) {
+	logger.Infof("Executing RCON command on %s: %s", s.address, cmd)
+	return s.send(cmd)
+}
+
 // ChangeLevel sends the Source changelevel command for the given map.
 func (s *Client) ChangeLevel(level string) error {
 	logger.Infof("Changing level on %s to %s", s.address, level)

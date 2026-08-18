@@ -165,6 +165,7 @@ var (
 	rxPaused        = regexp.MustCompile(`^World triggered "Game_Paused"$`)
 	rxUnpaused      = regexp.MustCompile(`^World triggered "Game_Unpaused"$`)
 	rxCVar          = regexp.MustCompile(`^"([^"]+)" = "([^"]+)"`)
+	rxServerCVar    = regexp.MustCompile(`^server_cvar:\s+"([^"]+)"\s+"([^"]+)"$`)
 
 	rxDisconnected = regexp.MustCompile(`^disconnected \(reason "([^"]+)"\)$`)
 
@@ -361,11 +362,25 @@ func Parse(line string) (Event, bool) {
 		return Event{Type: EventCVar, Timestamp: ts, Data: map[string]string{"cvar": m[1], "value": m[2]}}, true
 	}
 
+	if m := rxServerCVar.FindStringSubmatch(body); m != nil {
+		return Event{Type: EventCVar, Timestamp: ts, Data: map[string]string{"cvar": m[1], "value": m[2]}}, true
+	}
+
 	return Event{Type: EventUnknown, Timestamp: ts}, false
 }
 
 // ClassFromString converts a class token to a PlayerClass.
 func ClassFromString(s string) PlayerClass { return parseClass(s) }
+
+// ParseCVar parses a raw Source engine cvar line (e.g. `"mp_timelimit" = "30"`)
+// without a leading log timestamp. It returns the cvar name and value.
+func ParseCVar(line string) (name, value string, ok bool) {
+	line = strings.TrimSpace(line)
+	if m := rxCVar.FindStringSubmatch(line); m != nil {
+		return m[1], m[2], true
+	}
+	return "", "", false
+}
 
 // FindPlayers extracts every quoted player block from s and returns them as
 // Player values. Useful for parsing cappers lists and similar log payloads.

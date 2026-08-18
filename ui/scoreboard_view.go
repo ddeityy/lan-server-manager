@@ -140,6 +140,7 @@ var (
 type ScoreboardView struct {
 	redTable   *teamTable
 	bluTable   *teamTable
+	cvars      *CVarPanel
 	unassigned *fyne.Container
 	onKick     func(scoreboard.PlayerStats)
 }
@@ -148,6 +149,7 @@ func newScoreboardView() *ScoreboardView {
 	return &ScoreboardView{
 		redTable:   newTeamTable("RED", redTeamColor, fyne.TextAlignLeading, false),
 		bluTable:   newTeamTable("BLU", bluTeamColor, fyne.TextAlignTrailing, true),
+		cvars:      newCVarPanel(),
 		unassigned: container.NewVBox(),
 	}
 }
@@ -167,6 +169,21 @@ func (sv *ScoreboardView) Update(red, blu, unassigned []scoreboard.PlayerStats, 
 	sv.updateUnassigned(unassigned)
 }
 
+// SetCVar updates the value displayed for a tracked CVar.
+func (sv *ScoreboardView) SetCVar(name, value string) {
+	sv.cvars.Set(name, value)
+}
+
+// MarkCVarsPending highlights the listed CVars as changed from the UI.
+func (sv *ScoreboardView) MarkCVarsPending(names ...string) {
+	sv.cvars.MarkPending(names...)
+}
+
+// ClearCVarsPending removes the pending highlight from the listed CVars.
+func (sv *ScoreboardView) ClearCVarsPending(names ...string) {
+	sv.cvars.ClearPending(names...)
+}
+
 func (sv *ScoreboardView) updateUnassigned(players []scoreboard.PlayerStats) {
 	objects := make([]fyne.CanvasObject, 0, len(players))
 	for _, p := range players {
@@ -177,16 +194,17 @@ func (sv *ScoreboardView) updateUnassigned(players []scoreboard.PlayerStats) {
 	sv.unassigned.Refresh()
 }
 
-// Reset clears both tables and the unassigned list.
+// Reset clears both tables, the CVar panel, and the unassigned list.
 func (sv *ScoreboardView) Reset() {
 	sv.redTable.update(nil, 0, 0)
 	sv.bluTable.update(nil, 0, 0)
 	sv.updateUnassigned(nil)
+	sv.cvars.Reset()
 }
 
 // View returns the scoreboard as a single canvas object.
 func (sv *ScoreboardView) View() fyne.CanvasObject {
-	return container.NewBorder(nil, sv.unassigned, nil, nil,
+	return container.NewBorder(sv.cvars.View(), sv.unassigned, nil, nil,
 		container.NewHSplit(sv.bluTable.View(), sv.redTable.View()),
 	)
 }

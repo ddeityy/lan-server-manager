@@ -65,6 +65,11 @@ func NewServerPanel(window fyne.Window, title string, onTitleChanged func()) *Se
 	p.logs.SetOnEvent(func(evt logparse.Event) {
 		p.scoreboard.Apply(evt)
 		fyne.Do(func() {
+			if evt.Type == logparse.EventCVar {
+				if name := evt.Data["cvar"]; name != "" {
+					p.scoreboardView.SetCVar(name, evt.Data["value"])
+				}
+			}
 			red, blu, _, unassigned := p.scoreboard.TeamsAndUnassigned()
 			redScore, bluScore := p.scoreboard.Scores()
 			p.scoreboardView.Update(red, blu, unassigned, p.scoreboard.TimeSinceStart(), redScore, bluScore)
