@@ -1,13 +1,13 @@
 package ui
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 
+	"lan-server-manager/game/scoreboard"
 	"lan-server-manager/internal/logger"
 	"lan-server-manager/rcon"
 )
@@ -144,90 +144,6 @@ func (p *ServerPanel) refresh() {
 	}()
 }
 
-func (p *ServerPanel) kick(userid int) {
-	if p.client == nil {
-		p.players.SetStatus("Not connected")
-		return
-	}
-
-	p.players.SetStatus(fmt.Sprintf("Kicking player %d...", userid))
-	logger.Infof("%s: kicking player %d", p.title, userid)
-
-	go func() {
-		p.rconMutex.Lock()
-		err := p.client.Kick(userid)
-		p.rconMutex.Unlock()
-
-		fyne.Do(func() {
-			if err != nil {
-				logger.Errorf("%s: kick %d failed: %v", p.title, userid, err)
-				p.players.SetStatus("Kick failed: " + p.formatError(err))
-				return
-			}
-			logger.Infof("%s: kicked player %d", p.title, userid)
-			p.players.SetStatus(fmt.Sprintf("Kicked player %d", userid))
-			p.refresh()
-		})
-	}()
-}
-
-func (p *ServerPanel) confirmKickAll() {
-	dialog.NewConfirm(
-		"Kick all players",
-		"Are you sure you want to kick every connected player?",
-		func(confirmed bool) {
-			if !confirmed {
-				return
-			}
-			p.kickAll()
-		},
-		p.window,
-	).Show()
-}
-
-func (p *ServerPanel) kickAll() {
-	if p.client == nil {
-		p.players.SetStatus("Not connected")
-		return
-	}
-
-	p.players.kickAllButton.Disable()
-	p.players.SetStatus("Kicking all players...")
-	logger.Infof("%s: kicking all players", p.title)
-
-	go func() {
-		players := p.serverInfo.LastInfo().Players
-
-		if len(players) == 0 {
-			fyne.Do(func() {
-				p.players.SetStatus("No players to kick")
-				p.players.kickAllButton.Enable()
-			})
-			return
-		}
-
-		p.rconMutex.Lock()
-		var lastErr error
-		for _, player := range players {
-			if err := p.client.Kick(player.UserID); err != nil {
-				lastErr = err
-			}
-		}
-		p.rconMutex.Unlock()
-
-		fyne.Do(func() {
-			if lastErr != nil {
-				logger.Errorf("%s: kick all finished with errors: %v", p.title, lastErr)
-				p.players.SetStatus("Kick all finished with errors: " + p.formatError(lastErr))
-			} else {
-				logger.Infof("%s: kicked all players", p.title)
-				p.players.SetStatus("Kicked all players")
-			}
-			p.refresh()
-		})
-	}()
-}
-
 func (p *ServerPanel) changeLevel() {
 	mapName := p.actions.SelectedMap()
 	if mapName == "" {
@@ -314,6 +230,34 @@ func (p *ServerPanel) sendMessageAction() {
 		func() error { return p.client.Execute("say " + msg) },
 		p.sendMessage.Clear,
 	)
+}
+
+func (p *ServerPanel) kickPlayer(player scoreboard.PlayerStats) {
+	if p.client == nil {
+		p.actions.SetStatus("Not connected")
+		return
+	}
+	uid, err := strconv.Atoi(player.UserID)
+	if err != nil || uid <= 0 {
+		p.actions.SetStatus("Cannot kick: missing user ID")
+		return
+	}
+
+	logger.Infof("%s: kicking player %d (%s)", p.title, uid, player.Name)
+	go func() {
+		p.rconMutex.Lock()
+		err := p.client.Kick(uid)
+		p.rconMutex.Unlock()
+		fyne.Do(func() {
+			if err != nil {
+				logger.Errorf("%s: kick failed: %v", p.title, err)
+				p.actions.SetStatus("Kick failed: " + p.formatError(err))
+				return
+			}
+			logger.Infof("%s: kicked player %d", p.title, uid)
+			p.actions.SetStatus("Kicked " + player.Name)
+		})
+	}()
 }
 
 func (p *ServerPanel) sendCustomCommand() {

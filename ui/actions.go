@@ -105,17 +105,12 @@ func (a *Actions) View() fyne.CanvasObject {
 
 // SetEnabled enables or disables all action send buttons. Inputs remain editable.
 func (a *Actions) SetEnabled(enabled bool) {
-	if enabled {
-		a.changePasswordButton.Enable()
-		a.changeLevelButton.Enable()
-		a.execConfigButton.Enable()
-		a.customCommandButton.Enable()
-		return
-	}
-	a.changePasswordButton.Disable()
-	a.changeLevelButton.Disable()
-	a.execConfigButton.Disable()
-	a.customCommandButton.Disable()
+	setButtonsEnabled(enabled,
+		a.changePasswordButton,
+		a.changeLevelButton,
+		a.execConfigButton,
+		a.customCommandButton,
+	)
 }
 
 // ClearServerPassword clears the server password entry.

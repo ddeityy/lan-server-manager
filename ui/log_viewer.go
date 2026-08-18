@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"lan-server-manager/game/logparse"
 	"lan-server-manager/internal/logger"
 	"lan-server-manager/logs"
 )
@@ -32,6 +33,7 @@ type LogViewer struct {
 	in      chan chatMessage
 	clearCh chan struct{}
 	done    chan struct{}
+	onEvent func(logparse.Event)
 
 	autoScroll bool
 	lastOffset float32
@@ -74,6 +76,11 @@ func (lv *LogViewer) SetTarget(target logs.Target) {
 
 // Target returns the current log tail target.
 func (lv *LogViewer) Target() logs.Target { return lv.target }
+
+// SetOnEvent registers a callback invoked for every parsed log event.
+func (lv *LogViewer) SetOnEvent(fn func(logparse.Event)) {
+	lv.onEvent = fn
+}
 
 // Stop terminates any active log tail. It does not clear displayed messages.
 func (lv *LogViewer) Stop() {
@@ -168,11 +175,18 @@ func (lv *LogViewer) route(stream *logs.Stream, in chan<- chatMessage, done <-ch
 			if !ok {
 				return
 			}
-			if !isServerLogLine(line) || !isChatLogLine(line) {
+			evt, ok := logparse.Parse(line)
+			if !ok {
 				continue
 			}
-			chat, err := parseChatMessage(line)
-			if err != nil {
+			if lv.onEvent != nil {
+				lv.onEvent(evt)
+			}
+			if evt.Type != logparse.EventChat && evt.Type != logparse.EventChatTeam {
+				continue
+			}
+			chat, chatOK := chatFromLogEvent(evt)
+			if !chatOK {
 				continue
 			}
 			select {

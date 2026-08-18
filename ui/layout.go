@@ -3,6 +3,7 @@ package ui
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/widget"
 )
 
 const actionRowGap = float32(8)
@@ -42,26 +43,13 @@ func newActionRow(left, right fyne.CanvasObject) *fyne.Container {
 	return container.New(&actionRowLayout{}, left, right)
 }
 
-// minWidthLayout wraps a single child and enforces a minimum width.
-type minWidthLayout struct {
-	width float32
-}
-
-func (l *minWidthLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
-	if len(objects) == 0 {
-		return
+// setButtonsEnabled enables or disables a slice of buttons.
+func setButtonsEnabled(enabled bool, buttons ...*widget.Button) {
+	for _, b := range buttons {
+		if enabled {
+			b.Enable()
+		} else {
+			b.Disable()
+		}
 	}
-	objects[0].Move(fyne.NewPos(0, 0))
-	objects[0].Resize(size)
-}
-
-func (l *minWidthLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
-	if len(objects) == 0 {
-		return fyne.NewSize(l.width, 0)
-	}
-	s := objects[0].MinSize()
-	if s.Width < l.width {
-		s.Width = l.width
-	}
-	return s
 }

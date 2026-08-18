@@ -20,7 +20,7 @@ func (p *ServerPanel) buildUI(title string) {
 		nil, p.sendMessage.View(), nil, nil,
 		p.logs.View(),
 	)
-	right := container.NewVSplit(p.players.View(), chat)
+	right := container.NewVSplit(p.scoreboardView.View(), chat)
 	right.Offset = 0.5
 
 	split := container.NewHSplit(leftScroll, right)

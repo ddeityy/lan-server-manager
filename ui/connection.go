@@ -19,14 +19,19 @@ type Connection struct {
 	disconnectButton   *widget.Button
 }
 
+const (
+	defaultAddress  = "0.0.0.0:27015"
+	defaultPassword = "test"
+)
+
 func newConnection(onConnect, onDisconnect func()) *Connection {
 	c := &Connection{}
 
 	c.addressEntry = widget.NewEntry()
-	c.addressEntry.SetText("0.0.0.0:27015")
+	c.addressEntry.SetText(defaultAddress)
 
 	c.passwordEntry = widget.NewPasswordEntry()
-	c.passwordEntry.SetText("test")
+	c.passwordEntry.SetText(defaultPassword)
 
 	c.sshHostEntry = widget.NewEntry()
 	c.sshHostEntry.SetPlaceHolder("ssh host (optional)")
@@ -104,12 +109,9 @@ func (c *Connection) SetConnecting() {
 // SetConnected enables or disables the connect/disconnect buttons and updates
 // the status text. When connected the status reads "Connected".
 func (c *Connection) SetConnected(connected bool) {
+	setButtonsEnabled(!connected, c.connectButton)
+	setButtonsEnabled(connected, c.disconnectButton)
 	if connected {
-		c.connectButton.Disable()
-		c.disconnectButton.Enable()
 		c.SetStatus("Connected")
-		return
 	}
-	c.connectButton.Enable()
-	c.disconnectButton.Disable()
 }

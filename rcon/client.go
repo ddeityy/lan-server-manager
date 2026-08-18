@@ -229,10 +229,6 @@ func ParseStatus(status string) (ServerInfo, error) {
 		line = strings.TrimRight(line, "\r")
 		if m := rePlayer.FindStringSubmatch(line); m != nil {
 			uniqueID := m[3]
-			// Skip bot entries.
-			if uniqueID == "BOT" {
-				continue
-			}
 			id, _ := strconv.Atoi(m[1])
 			ping, _ := strconv.Atoi(m[5])
 			loss, _ := strconv.Atoi(m[6])

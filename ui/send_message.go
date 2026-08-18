@@ -33,11 +33,7 @@ func (s *SendMessage) Text() string { return s.entry.Text }
 
 // SetEnabled enables or disables the send button.
 func (s *SendMessage) SetEnabled(enabled bool) {
-	if enabled {
-		s.button.Enable()
-		return
-	}
-	s.button.Disable()
+	setButtonsEnabled(enabled, s.button)
 }
 
 // View returns the message row as a single canvas object.

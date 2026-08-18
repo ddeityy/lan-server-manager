@@ -7,6 +7,8 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 
+	"lan-server-manager/game/logparse"
+	"lan-server-manager/game/scoreboard"
 	"lan-server-manager/rcon"
 )
 
@@ -18,12 +20,13 @@ type ServerPanel struct {
 	client *rcon.Client
 	title  string
 
-	connection  *Connection
-	actions     *Actions
-	serverInfo  *ServerInfo
-	players     *PlayerSection
-	logs        *LogViewer
-	sendMessage *SendMessage
+	connection     *Connection
+	actions        *Actions
+	serverInfo     *ServerInfo
+	scoreboardView *ScoreboardView
+	logs           *LogViewer
+	sendMessage    *SendMessage
+	scoreboard     *scoreboard.Scoreboard
 
 	rconMutex      sync.Mutex
 	refreshTicker  *time.Ticker
@@ -55,8 +58,18 @@ func NewServerPanel(window fyne.Window, title string, onTitleChanged func()) *Se
 		p.sendCustomCommand,
 	)
 	p.sendMessage = newSendMessage(p.sendMessageAction)
-	p.players = newPlayerSection(p.confirmKickAll)
+	p.scoreboardView = newScoreboardView()
+	p.scoreboardView.SetOnKick(p.kickPlayer)
 	p.logs = newLogViewer()
+	p.scoreboard = scoreboard.New()
+	p.logs.SetOnEvent(func(evt logparse.Event) {
+		p.scoreboard.Apply(evt)
+		fyne.Do(func() {
+			red, blu, _, unassigned := p.scoreboard.TeamsAndUnassigned()
+			redScore, bluScore := p.scoreboard.Scores()
+			p.scoreboardView.Update(red, blu, unassigned, p.scoreboard.TimeSinceStart(), redScore, bluScore)
+		})
+	})
 
 	p.buildUI(title)
 	return p

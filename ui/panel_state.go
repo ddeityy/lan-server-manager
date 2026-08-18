@@ -1,6 +1,10 @@
 package ui
 
 import (
+	"strconv"
+
+	"lan-server-manager/game/logparse"
+	"lan-server-manager/game/scoreboard"
 	"lan-server-manager/internal/logger"
 	"lan-server-manager/rcon"
 )
@@ -11,7 +15,6 @@ func (p *ServerPanel) setConnected(connected bool) {
 		p.connection.SetConnected(true)
 		p.actions.SetEnabled(true)
 		p.sendMessage.SetEnabled(true)
-		p.players.SetEnabled(true)
 		p.pendingMapSync = true
 		p.startAutoRefresh()
 		return
@@ -21,13 +24,13 @@ func (p *ServerPanel) setConnected(connected bool) {
 	p.connection.SetConnected(false)
 	p.actions.SetEnabled(false)
 	p.sendMessage.SetEnabled(false)
-	p.players.SetEnabled(false)
 }
 
 func (p *ServerPanel) resetInfo() {
 	logger.Infof("%s: resetting info", p.title)
 	p.serverInfo.Reset()
-	p.players.Reset()
+	p.scoreboardView.Reset()
+	p.scoreboard.Reset()
 }
 
 func (p *ServerPanel) updateInfo(info rcon.ServerInfo, err error) {
@@ -47,6 +50,20 @@ func (p *ServerPanel) updateInfo(info rcon.ServerInfo, err error) {
 		p.updateTitle(info.Hostname)
 	}
 
-	// logger.Infof("%s: refreshed %d players on %s", p.title, len(info.Players), info.Map)
-	p.players.Update(info.Players, p.kick)
+	for _, rp := range info.Players {
+		uid := strconv.Itoa(rp.UserID)
+		key := scoreboard.PlayerKey(uid, rp.UniqueID)
+		if _, ok := p.scoreboard.Player(key); !ok {
+			p.scoreboard.Upsert(logparse.Player{
+				Name:    rp.Name,
+				UserID:  uid,
+				SteamID: rp.UniqueID,
+			})
+		}
+		p.scoreboard.SetPing(key, rp.Ping)
+	}
+
+	red, blu, _, unassigned := p.scoreboard.TeamsAndUnassigned()
+	redScore, bluScore := p.scoreboard.Scores()
+	p.scoreboardView.Update(red, blu, unassigned, p.scoreboard.TimeSinceStart(), redScore, bluScore)
 }
