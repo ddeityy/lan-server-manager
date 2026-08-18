@@ -76,20 +76,20 @@ func (c Config) ConfigsOrDefault() []string {
 
 // LoadBytes parses TOML data and applies defaults when a list is empty.
 func LoadBytes(data []byte) (Config, error) {
-	var c Config
-	if err := toml.Unmarshal(data, &c); err != nil {
+	var cfg Config
+	if err := toml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, fmt.Errorf("parse config file: %w", err)
 	}
 
-	if len(c.Maps) == 0 {
+	if len(cfg.Maps) == 0 {
 		logger.Warnf("No maps in config, using defaults")
-		c.Maps = Default().Maps
+		cfg.Maps = Default().Maps
 	}
-	if len(c.Configs) == 0 {
+	if len(cfg.Configs) == 0 {
 		logger.Warnf("No configs in config, using defaults")
-		c.Configs = Default().Configs
+		cfg.Configs = Default().Configs
 	}
 
-	logger.Infof("Parsed config with %d maps, %d configs, %d servers", len(c.Maps), len(c.Configs), len(c.Servers))
-	return c, nil
+	logger.Infof("Parsed config with %d maps, %d configs, %d servers", len(cfg.Maps), len(cfg.Configs), len(cfg.Servers))
+	return cfg, nil
 }

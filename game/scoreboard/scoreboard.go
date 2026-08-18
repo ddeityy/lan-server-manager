@@ -1,12 +1,25 @@
 package scoreboard
 
 import (
+	"maps"
 	"strconv"
 	"sync"
 	"time"
 
 	"lan-server-manager/game/logparse"
 )
+
+// Snapshot is an immutable value copy of the scoreboard at one point in time.
+type Snapshot struct {
+	Red        []PlayerStats
+	Blu        []PlayerStats
+	Spec       []PlayerStats
+	Unassigned []PlayerStats
+	RedScore   int
+	BluScore   int
+	Elapsed    time.Duration
+	CVars      map[string]string
+}
 
 // PlayerStats holds the scoreboard numbers for a single player.
 type PlayerStats struct {
@@ -25,22 +38,23 @@ type PlayerStats struct {
 	Heals       int
 }
 
-// DPM returns damage per minute since the game started.
-func (p *PlayerStats) DPM(elapsed time.Duration) float64 {
+// perMinute converts an absolute count to a per-minute rate based on elapsed time.
+func perMinute(value int, elapsed time.Duration) float64 {
 	m := elapsed.Minutes()
 	if m <= 0 {
 		return 0
 	}
-	return float64(p.Damage) / m
+	return float64(value) / m
+}
+
+// DPM returns damage per minute since the game started.
+func (p *PlayerStats) DPM(elapsed time.Duration) float64 {
+	return perMinute(p.Damage, elapsed)
 }
 
 // DTM returns damage taken per minute since the game started.
 func (p *PlayerStats) DTM(elapsed time.Duration) float64 {
-	m := elapsed.Minutes()
-	if m <= 0 {
-		return 0
-	}
-	return float64(p.DamageTaken) / m
+	return perMinute(p.DamageTaken, elapsed)
 }
 
 // KAD returns (kills + assists) / deaths.
@@ -68,15 +82,15 @@ type Scoreboard struct {
 	redScore int
 	bluScore int
 
-	timelimit     string
-	winlimit      string
-	windifference string
+	// cvars stores the latest echoed value for any tracked CVar.
+	cvars map[string]string
 }
 
 // New creates an empty scoreboard.
 func New() *Scoreboard {
 	return &Scoreboard{
 		players: make(map[string]*PlayerStats),
+		cvars:   make(map[string]string),
 	}
 }
 
@@ -164,23 +178,27 @@ func (s *Scoreboard) Apply(evt logparse.Event) {
 		}
 
 	case logparse.EventCVar:
-		switch evt.Data["cvar"] {
-		case cvarTimelimit:
-			s.timelimit = evt.Data["value"]
-		case cvarWinlimit:
-			s.winlimit = evt.Data["value"]
-		case cvarWindifference:
-			s.windifference = evt.Data["value"]
+		if evt.Data["cvar"] != "" {
+			s.cvars[evt.Data["cvar"]] = evt.Data["value"]
 		}
+
+	case logparse.EventStatusSeed:
+		p := s.upsertLocked(evt.Source)
+		if evt.Source.Ping > 0 {
+			p.Ping = evt.Source.Ping
+		}
+
+	case logparse.EventReset:
+		s.resetLocked()
 	}
 }
 
 // Upsert returns an existing player entry or creates one. The public entry
 // point for seeding players from RCON status.
-func (s *Scoreboard) Upsert(pl logparse.Player) *PlayerStats {
+func (s *Scoreboard) Upsert(player logparse.Player) *PlayerStats {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.upsertLocked(pl)
+	return s.upsertLocked(player)
 }
 
 // PlayerKey returns the internal key for a user ID / SteamID pair. Useful when
@@ -201,45 +219,45 @@ func (s *Scoreboard) SetPing(key string, ping int) {
 
 // upsertLocked returns an existing player entry or creates one. The caller must
 // hold the write lock.
-func (s *Scoreboard) upsertLocked(pl logparse.Player) *PlayerStats {
-	key := playerKey(pl)
+func (s *Scoreboard) upsertLocked(player logparse.Player) *PlayerStats {
+	key := playerKey(player)
 	if key == "" {
-		return &PlayerStats{Name: pl.Name}
+		return &PlayerStats{Name: player.Name}
 	}
-	p, ok := s.players[key]
+	stats, ok := s.players[key]
 	if !ok {
-		p = &PlayerStats{
-			SteamID: pl.SteamID,
-			UserID:  pl.UserID,
-			Name:    pl.Name,
-			Team:    pl.Team,
+		stats = &PlayerStats{
+			SteamID: player.SteamID,
+			UserID:  player.UserID,
+			Name:    player.Name,
+			Team:    player.Team,
 		}
-		s.players[key] = p
-	} else if pl.Name != "" {
-		p.Name = pl.Name
-		p.UserID = pl.UserID
-		if pl.SteamID != "" && pl.SteamID != "BOT" {
-			p.SteamID = pl.SteamID
+		s.players[key] = stats
+	} else if player.Name != "" {
+		stats.Name = player.Name
+		stats.UserID = player.UserID
+		if player.SteamID != "" && player.SteamID != "BOT" {
+			stats.SteamID = player.SteamID
 		}
-		if pl.Team != logparse.TeamUnknown {
-			p.Team = pl.Team
+		if player.Team != logparse.TeamUnknown {
+			stats.Team = player.Team
 		}
-		if pl.Ping > 0 {
-			p.Ping = pl.Ping
+		if player.Ping > 0 {
+			stats.Ping = player.Ping
 		}
 	}
-	return p
+	return stats
 }
 
 // playerKey returns a unique key for a log player. SteamID is preferred, but
 // falls back to user ID for bots or missing SteamIDs so multiple bots don't
 // collapse into a single entry.
-func playerKey(pl logparse.Player) string {
-	if pl.SteamID != "" && pl.SteamID != "BOT" {
-		return pl.SteamID
+func playerKey(player logparse.Player) string {
+	if player.SteamID != "" && player.SteamID != "BOT" {
+		return player.SteamID
 	}
-	if pl.UserID != "" {
-		return "UID:" + pl.UserID
+	if player.UserID != "" {
+		return "UID:" + player.UserID
 	}
 	return ""
 }
@@ -256,17 +274,18 @@ func (s *Scoreboard) resetLocked() {
 	s.gameStart = time.Time{}
 	s.redScore = 0
 	s.bluScore = 0
+	s.cvars = make(map[string]string)
 }
 
 // Player returns a player entry by SteamID or composite key.
 func (s *Scoreboard) Player(key string) (*PlayerStats, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	p, ok := s.players[key]
+	player, ok := s.players[key]
 	if !ok {
 		return nil, false
 	}
-	return p, true
+	return player, true
 }
 
 // Remove deletes a player from the scoreboard by SteamID or composite key.
@@ -277,36 +296,38 @@ func (s *Scoreboard) Remove(key string) {
 }
 
 // Teams returns the current Red, Blu, and Spectator rosters as value copies.
-func (s *Scoreboard) Teams() (red, blu, spec []PlayerStats) {
+func (s *Scoreboard) Teams() ([]PlayerStats, []PlayerStats, []PlayerStats) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	for _, p := range s.players {
-		switch p.Team {
+	var red, blu, spec []PlayerStats
+	for _, player := range s.players {
+		switch player.Team {
 		case logparse.TeamRed:
-			red = append(red, *p)
+			red = append(red, *player)
 		case logparse.TeamBlu:
-			blu = append(blu, *p)
+			blu = append(blu, *player)
 		case logparse.TeamSpec:
-			spec = append(spec, *p)
+			spec = append(spec, *player)
 		}
 	}
 	return red, blu, spec
 }
 
 // TeamsAndUnassigned returns the Red, Blu, Spectator, and unassigned rosters.
-func (s *Scoreboard) TeamsAndUnassigned() (red, blu, spec, unassigned []PlayerStats) {
+func (s *Scoreboard) TeamsAndUnassigned() ([]PlayerStats, []PlayerStats, []PlayerStats, []PlayerStats) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	for _, p := range s.players {
-		switch p.Team {
+	var red, blu, spec, unassigned []PlayerStats
+	for _, player := range s.players {
+		switch player.Team {
 		case logparse.TeamRed:
-			red = append(red, *p)
+			red = append(red, *player)
 		case logparse.TeamBlu:
-			blu = append(blu, *p)
+			blu = append(blu, *player)
 		case logparse.TeamSpec:
-			spec = append(spec, *p)
+			spec = append(spec, *player)
 		default:
-			unassigned = append(unassigned, *p)
+			unassigned = append(unassigned, *player)
 		}
 	}
 	return red, blu, spec, unassigned
@@ -338,31 +359,61 @@ func (s *Scoreboard) SetGameStart(t time.Time) {
 }
 
 // Scores returns the current Red and Blu team scores.
-func (s *Scoreboard) Scores() (red, blu int) {
+func (s *Scoreboard) Scores() (int, int) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.redScore, s.bluScore
 }
 
-const (
-	cvarTimelimit     = "mp_timelimit"
-	cvarWinlimit      = "mp_winlimit"
-	cvarWindifference = "mp_windifference"
-)
-
-// CVar returns the latest echoed values for the tracked cvars.
+// CVar returns the latest echoed value for a tracked CVar.
 func (s *Scoreboard) CVar(name string) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	switch name {
-	case cvarTimelimit:
-		return s.timelimit
-	case cvarWinlimit:
-		return s.winlimit
-	case cvarWindifference:
-		return s.windifference
+	return s.cvars[name]
+}
+
+// Snapshot returns an immutable value copy of the current scoreboard state.
+func (s *Scoreboard) Snapshot() Snapshot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	red, blu, spec, unassigned := s.teamsAndUnassignedLocked()
+	cvars := maps.Clone(s.cvars)
+
+	return Snapshot{
+		Red:        red,
+		Blu:        blu,
+		Spec:       spec,
+		Unassigned: unassigned,
+		RedScore:   s.redScore,
+		BluScore:   s.bluScore,
+		Elapsed:    s.elapsedLocked(),
+		CVars:      cvars,
 	}
-	return ""
+}
+
+func (s *Scoreboard) teamsAndUnassignedLocked() ([]PlayerStats, []PlayerStats, []PlayerStats, []PlayerStats) {
+	var red, blu, spec, unassigned []PlayerStats
+	for _, player := range s.players {
+		switch player.Team {
+		case logparse.TeamRed:
+			red = append(red, *player)
+		case logparse.TeamBlu:
+			blu = append(blu, *player)
+		case logparse.TeamSpec:
+			spec = append(spec, *player)
+		default:
+			unassigned = append(unassigned, *player)
+		}
+	}
+	return red, blu, spec, unassigned
+}
+
+func (s *Scoreboard) elapsedLocked() time.Duration {
+	if s.gameStart.IsZero() {
+		return 0
+	}
+	return time.Since(s.gameStart)
 }
 
 // AllPlayers returns a copy of every tracked player. Spectators are included

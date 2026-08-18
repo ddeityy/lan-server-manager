@@ -12,6 +12,7 @@ func (p *ServerPanel) buildUI(title string) {
 	left := container.NewVBox(
 		p.serverInfo.View(p.connection.View()),
 		widget.NewCard("Actions", "", p.actions.View()),
+		widget.NewCard("CVars", "", p.cvars.View()),
 	)
 	leftScroll := container.NewVScroll(left)
 	leftScroll.SetMinSize(fyne.NewSize(sidebarMinWidth, 0))

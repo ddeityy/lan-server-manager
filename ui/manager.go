@@ -51,14 +51,14 @@ func (m *Manager) loadTabs() {
 	if len(appConfig.Servers) > 0 {
 		logger.Infof("Loading %d server tabs from config", len(appConfig.Servers))
 		for _, preset := range appConfig.Servers {
-			p := m.newPanel(m.nextTabTitle())
-			p.connection.SetAddress(preset.Address)
-			p.connection.SetPassword(preset.RCONPassword)
-			p.connection.SetContainerName(preset.ContainerName)
-			p.connection.SetSSHHost(preset.SSHHost)
-			p.connection.SetSSHPassword(preset.SSHPassword)
-			p.actions.SetServerPassword(preset.Password)
-			p.logs.SetTarget(logs.Target{
+			panel := m.newPanel(m.nextTabTitle())
+			panel.connection.SetAddress(preset.Address)
+			panel.connection.SetPassword(preset.RCONPassword)
+			panel.connection.SetContainerName(preset.ContainerName)
+			panel.connection.SetSSHHost(preset.SSHHost)
+			panel.connection.SetSSHPassword(preset.SSHPassword)
+			panel.actions.SetServerPassword(preset.Password)
+			panel.logs.SetTarget(logs.Target{
 				ContainerName: preset.ContainerName,
 				SSHHost:       preset.SSHHost,
 				SSHUser:       preset.SSHUser,
@@ -66,13 +66,13 @@ func (m *Manager) loadTabs() {
 				SSHKeyPath:    preset.SSHKeyPath,
 			})
 			logger.Infof("Created panel for %s (container=%q ssh_host=%q)", preset.Address, preset.ContainerName, preset.SSHHost)
-			m.panels = append(m.panels, p)
+			m.panels = append(m.panels, panel)
 		}
 
 		m.rebuildTabs()
 		m.tabs.SelectIndex(0)
-		for _, p := range m.panels {
-			p.connect()
+		for _, panel := range m.panels {
+			panel.connect()
 		}
 		return
 	}
@@ -84,8 +84,8 @@ func (m *Manager) loadTabs() {
 func (m *Manager) addPanel() {
 	title := m.nextTabTitle()
 	logger.Infof("Adding new panel %s", title)
-	p := m.newPanel(title)
-	m.panels = append(m.panels, p)
+	panel := m.newPanel(title)
+	m.panels = append(m.panels, panel)
 	m.rebuildTabs()
 	m.tabs.SelectIndex(len(m.panels) - 1)
 }
@@ -124,13 +124,13 @@ func (m *Manager) handleTabClose(item *container.TabItem) {
 
 func (m *Manager) closePanel(item *container.TabItem) {
 	closedIndex := -1
-	for i, p := range m.panels {
-		if p.TabItem() == item {
+	for idx, panel := range m.panels {
+		if panel.TabItem() == item {
 			logger.Infof("Closing panel %q", item.Text)
-			p.logs.Stop()
-			p.Disconnect()
-			m.panels = append(m.panels[:i], m.panels[i+1:]...)
-			closedIndex = i
+			panel.logs.Stop()
+			panel.Disconnect()
+			m.panels = append(m.panels[:idx], m.panels[idx+1:]...)
+			closedIndex = idx
 			break
 		}
 	}

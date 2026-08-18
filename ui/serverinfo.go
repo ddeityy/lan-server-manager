@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"strconv"
 
 	"fyne.io/fyne/v2"
@@ -33,7 +32,7 @@ func newServerInfo(
 
 func newRefreshIntervalEntry(onIntervalChanged func()) *widget.Entry {
 	entry := widget.NewEntry()
-	entry.SetText(fmt.Sprintf("%d", defaultRefreshInterval))
+	entry.SetText(strconv.Itoa(defaultRefreshInterval))
 	entry.SetPlaceHolder("seconds")
 	entry.OnSubmitted = func(string) { onIntervalChanged() }
 	entry.OnChanged = func(string) { onIntervalChanged() }
@@ -46,7 +45,7 @@ func (si *ServerInfo) View(connection fyne.CanvasObject) fyne.CanvasObject {
 
 	header := container.NewHBox(
 		widget.NewLabelWithStyle("Server Info", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabel("Refresh interval (s):"),
+		widget.NewLabel("RCON Refresh interval (s):"),
 		si.refreshIntervalEntry,
 	)
 

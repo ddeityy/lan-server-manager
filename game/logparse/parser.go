@@ -39,6 +39,8 @@ const (
 	EventCVar
 	EventMapChange
 	EventHealed
+	EventStatusSeed
+	EventReset
 )
 
 // Team is one of the three in-game teams.
@@ -125,11 +127,11 @@ func parseClass(s string) PlayerClass {
 }
 
 func parseTime(date, t string) time.Time {
-	ts, err := time.ParseInLocation("01/02/2006 - 15:04:05", date+" - "+t, time.Local)
+	timestamp, err := time.ParseInLocation("01/02/2006 - 15:04:05", date+" - "+t, time.Local)
 	if err != nil {
 		return time.Time{}
 	}
-	return ts
+	return timestamp
 }
 
 var (
@@ -170,7 +172,6 @@ var (
 	rxDisconnected = regexp.MustCompile(`^disconnected \(reason "([^"]+)"\)$`)
 
 	rxDamageValue = regexp.MustCompile(`\(damage "(\d+)"\)`)
-	rxWeapon      = regexp.MustCompile(`\(weapon "(\S+)"\)`)
 	rxHealing     = regexp.MustCompile(`\(healing "(\d+)"\)`)
 )
 
@@ -186,195 +187,191 @@ func parsePlayer(matches []string) Player {
 	}
 }
 
-func parseDamageBody(body string) (damage int, weapon string) {
+func parseDamageValue(body string) int {
 	if m := rxDamageValue.FindStringSubmatch(body); m != nil {
-		damage, _ = strconv.Atoi(m[1])
+		damage, _ := strconv.Atoi(m[1])
+		return damage
 	}
-	if m := rxWeapon.FindStringSubmatch(body); m != nil {
-		weapon = m[1]
-	}
-	return damage, weapon
+	return 0
 }
+
+const teamKey = "team"
 
 // Parse classifies a raw Source engine log line into an Event.
 // The bool return is false when the line is not recognized.
 func Parse(line string) (Event, bool) {
-	if m := rxMapChange.FindStringSubmatch(line); m != nil {
-		return Event{Type: EventMapChange, Data: map[string]string{"map": m[1]}}, true
+	if matches := rxMapChange.FindStringSubmatch(line); matches != nil {
+		return Event{Type: EventMapChange, Data: map[string]string{"map": matches[1]}}, true
 	}
 
 	dm := rxDatePrefix.FindStringSubmatch(line)
 	if dm == nil {
 		return Event{}, false
 	}
-	ts := parseTime(dm[1], dm[2])
+	timestamp := parseTime(dm[1], dm[2])
 	body := line[len(dm[0]):]
 
 	if pm := rxPlayerPrefix.FindStringSubmatch(body); pm != nil {
 		source := parsePlayer(pm)
 		rest := body[len(pm[0]):]
 
-		if m := rxChatTeam.FindStringSubmatch(rest); m != nil {
-			return Event{Type: EventChatTeam, Timestamp: ts, Source: source, Data: map[string]string{"message": m[1]}}, true
+		if matches := rxChatTeam.FindStringSubmatch(rest); matches != nil {
+			return Event{Type: EventChatTeam, Timestamp: timestamp, Source: source, Data: map[string]string{"message": matches[1]}}, true
 		}
-		if m := rxChat.FindStringSubmatch(rest); m != nil {
-			return Event{Type: EventChat, Timestamp: ts, Source: source, Data: map[string]string{"message": m[1]}}, true
+		if matches := rxChat.FindStringSubmatch(rest); matches != nil {
+			return Event{Type: EventChat, Timestamp: timestamp, Source: source, Data: map[string]string{"message": matches[1]}}, true
 		}
-		if m := rxJoined.FindStringSubmatch(rest); m != nil {
-			source.Team = parseTeam(m[1])
-			return Event{Type: EventJoinedTeam, Timestamp: ts, Source: source, Data: map[string]string{"team": m[1]}}, true
+		if matches := rxJoined.FindStringSubmatch(rest); matches != nil {
+			source.Team = parseTeam(matches[1])
+			return Event{Type: EventJoinedTeam, Timestamp: timestamp, Source: source, Data: map[string]string{teamKey: matches[1]}}, true
 		}
-		if m := rxClass.FindStringSubmatch(rest); m != nil {
-			return Event{Type: EventChangeClass, Timestamp: ts, Source: source, Data: map[string]string{"class": m[1]}}, true
+		if matches := rxClass.FindStringSubmatch(rest); matches != nil {
+			return Event{Type: EventChangeClass, Timestamp: timestamp, Source: source, Data: map[string]string{"class": matches[1]}}, true
 		}
-		if m := rxSpawned.FindStringSubmatch(rest); m != nil {
-			return Event{Type: EventSpawned, Timestamp: ts, Source: source, Data: map[string]string{"class": m[1]}}, true
+		if matches := rxSpawned.FindStringSubmatch(rest); matches != nil {
+			return Event{Type: EventSpawned, Timestamp: timestamp, Source: source, Data: map[string]string{"class": matches[1]}}, true
 		}
-		if m := rxSuicide.FindStringSubmatch(rest); m != nil {
-			return Event{Type: EventSuicide, Timestamp: ts, Source: source, Data: map[string]string{"position": m[1]}}, true
+		if matches := rxSuicide.FindStringSubmatch(rest); matches != nil {
+			return Event{Type: EventSuicide, Timestamp: timestamp, Source: source}, true
 		}
-		if m := rxKilled.FindStringSubmatch(rest); m != nil {
+		if matches := rxKilled.FindStringSubmatch(rest); matches != nil {
 			return Event{
 				Type:      EventKilled,
-				Timestamp: ts,
+				Timestamp: timestamp,
 				Source:    source,
-				Target:    parsePlayer(m),
-				Data: map[string]string{
-					"weapon":            m[5],
-					"attacker_position": m[6],
-					"victim_position":   m[7],
-				},
+				Target:    parsePlayer(matches),
 			}, true
 		}
-		if m := rxAssist.FindStringSubmatch(rest); m != nil {
+		if matches := rxAssist.FindStringSubmatch(rest); matches != nil {
 			return Event{
 				Type:      EventKillAssist,
-				Timestamp: ts,
+				Timestamp: timestamp,
 				Source:    source,
-				Target:    parsePlayer(m),
-				Data: map[string]string{
-					"assister_position": m[5],
-					"attacker_position": m[6],
-					"victim_position":   m[7],
-				},
+				Target:    parsePlayer(matches),
 			}, true
 		}
-		if m := rxDamageNew.FindStringSubmatch(rest); m != nil {
-			damage, weapon := parseDamageBody(m[5])
+		if matches := rxDamageNew.FindStringSubmatch(rest); matches != nil {
+			damage := parseDamageValue(matches[5])
 			return Event{
 				Type:      EventDamage,
-				Timestamp: ts,
+				Timestamp: timestamp,
 				Source:    source,
-				Target:    parsePlayer(m),
-				Data: map[string]string{
-					"raw":    m[5],
-					"damage": strconv.Itoa(damage),
-					"weapon": weapon,
-				},
+				Target:    parsePlayer(matches),
+				Data:      map[string]string{"damage": strconv.Itoa(damage)},
 			}, true
 		}
-		if m := rxDamageOld.FindStringSubmatch(rest); m != nil {
+		if matches := rxDamageOld.FindStringSubmatch(rest); matches != nil {
 			return Event{
 				Type:      EventDamage,
-				Timestamp: ts,
+				Timestamp: timestamp,
 				Source:    source,
-				Data:      map[string]string{"damage": m[1]},
+				Data:      map[string]string{"damage": matches[1]},
 			}, true
 		}
-		if m := rxHealed.FindStringSubmatch(rest); m != nil {
+		if matches := rxHealed.FindStringSubmatch(rest); matches != nil {
 			healing := 0
-			if hm := rxHealing.FindStringSubmatch(m[5]); hm != nil {
+			if hm := rxHealing.FindStringSubmatch(matches[5]); hm != nil {
 				healing, _ = strconv.Atoi(hm[1])
 			}
 			return Event{
 				Type:      EventHealed,
-				Timestamp: ts,
+				Timestamp: timestamp,
 				Source:    source,
-				Target:    parsePlayer(m),
+				Target:    parsePlayer(matches),
 				Data: map[string]string{
 					"healing": strconv.Itoa(healing),
 				},
 			}, true
 		}
-		if m := rxDisconnected.FindStringSubmatch(rest); m != nil {
+		if matches := rxDisconnected.FindStringSubmatch(rest); matches != nil {
 			return Event{
 				Type:      EventDisconnected,
-				Timestamp: ts,
+				Timestamp: timestamp,
 				Source:    source,
-				Data:      map[string]string{"reason": m[1]},
+				Data:      map[string]string{"reason": matches[1]},
 			}, true
 		}
-		if m := rxCaptureBlocked.FindStringSubmatch(rest); m != nil {
+		if matches := rxCaptureBlocked.FindStringSubmatch(rest); matches != nil {
 			return Event{
 				Type:      EventCaptureBlocked,
-				Timestamp: ts,
+				Timestamp: timestamp,
 				Source:    source,
 				Data: map[string]string{
-					"cp":       m[1],
-					"cpname":   m[2],
-					"position": m[3],
+					"cp":       matches[1],
+					"cpname":   matches[2],
+					"position": matches[3],
 				},
 			}, true
 		}
 	}
 
-	if m := rxPointCaptured.FindStringSubmatch(body); m != nil {
+	if matches := rxPointCaptured.FindStringSubmatch(body); matches != nil {
 		return Event{
 			Type:      EventPointCaptured,
-			Timestamp: ts,
+			Timestamp: timestamp,
 			Data: map[string]string{
-				"team":        m[1],
-				"cp":          m[2],
-				"cpname":      m[3],
-				"numcappers":  m[4],
-				"cappers_raw": strings.TrimSpace(m[5]),
+				teamKey:       matches[1],
+				"cp":          matches[2],
+				"cpname":      matches[3],
+				"numcappers":  matches[4],
+				"cappers_raw": strings.TrimSpace(matches[5]),
 			},
 		}, true
 	}
-	if m := rxRoundStart.FindStringSubmatch(body); m != nil {
-		return Event{Type: EventRoundStart, Timestamp: ts}, true
+	if matches := rxRoundStart.FindStringSubmatch(body); matches != nil {
+		return Event{Type: EventRoundStart, Timestamp: timestamp}, true
 	}
-	if m := rxRoundWin.FindStringSubmatch(body); m != nil {
-		return Event{Type: EventRoundWin, Timestamp: ts, Data: map[string]string{"winner": m[1]}}, true
+	if matches := rxRoundWin.FindStringSubmatch(body); matches != nil {
+		return Event{Type: EventRoundWin, Timestamp: timestamp, Data: map[string]string{"winner": matches[1]}}, true
 	}
-	if m := rxRoundOvertime.FindStringSubmatch(body); m != nil {
-		return Event{Type: EventRoundOvertime, Timestamp: ts}, true
+	if matches := rxRoundOvertime.FindStringSubmatch(body); matches != nil {
+		return Event{Type: EventRoundOvertime, Timestamp: timestamp}, true
 	}
-	if m := rxRoundLength.FindStringSubmatch(body); m != nil {
-		return Event{Type: EventRoundLength, Timestamp: ts, Data: map[string]string{"seconds": m[1]}}, true
+	if matches := rxRoundLength.FindStringSubmatch(body); matches != nil {
+		return Event{Type: EventRoundLength, Timestamp: timestamp, Data: map[string]string{"seconds": matches[1]}}, true
 	}
-	if m := rxTeamScore.FindStringSubmatch(body); m != nil {
-		return Event{Type: EventTeamScore, Timestamp: ts, Data: map[string]string{"team": m[1], "score": m[2], "players": m[3]}}, true
+	if matches := rxTeamScore.FindStringSubmatch(body); matches != nil {
+		return Event{Type: EventTeamScore, Timestamp: timestamp, Data: map[string]string{"team": matches[1], "score": matches[2], "players": matches[3]}}, true
 	}
-	if m := rxTeamFinal.FindStringSubmatch(body); m != nil {
-		return Event{Type: EventTeamFinalScore, Timestamp: ts, Data: map[string]string{"team": m[1], "score": m[2], "players": m[3]}}, true
+	if matches := rxTeamFinal.FindStringSubmatch(body); matches != nil {
+		return Event{Type: EventTeamFinalScore, Timestamp: timestamp, Data: map[string]string{"team": matches[1], "score": matches[2], "players": matches[3]}}, true
 	}
-	if m := rxGameOver.FindStringSubmatch(body); m != nil {
-		return Event{Type: EventGameOver, Timestamp: ts, Data: map[string]string{"reason": m[1]}}, true
+	if matches := rxGameOver.FindStringSubmatch(body); matches != nil {
+		return Event{Type: EventGameOver, Timestamp: timestamp, Data: map[string]string{"reason": matches[1]}}, true
 	}
-	if m := rxPaused.FindStringSubmatch(body); m != nil {
-		return Event{Type: EventGamePaused, Timestamp: ts}, true
+	if matches := rxPaused.FindStringSubmatch(body); matches != nil {
+		return Event{Type: EventGamePaused, Timestamp: timestamp}, true
 	}
-	if m := rxUnpaused.FindStringSubmatch(body); m != nil {
-		return Event{Type: EventGameUnpaused, Timestamp: ts}, true
+	if matches := rxUnpaused.FindStringSubmatch(body); matches != nil {
+		return Event{Type: EventGameUnpaused, Timestamp: timestamp}, true
 	}
-	if m := rxCVar.FindStringSubmatch(body); m != nil {
-		return Event{Type: EventCVar, Timestamp: ts, Data: map[string]string{"cvar": m[1], "value": m[2]}}, true
-	}
-
-	if m := rxServerCVar.FindStringSubmatch(body); m != nil {
-		return Event{Type: EventCVar, Timestamp: ts, Data: map[string]string{"cvar": m[1], "value": m[2]}}, true
+	if matches := rxCVar.FindStringSubmatch(body); matches != nil {
+		return Event{Type: EventCVar, Timestamp: timestamp, Data: map[string]string{"cvar": matches[1], "value": matches[2]}}, true
 	}
 
-	return Event{Type: EventUnknown, Timestamp: ts}, false
+	if matches := rxServerCVar.FindStringSubmatch(body); matches != nil {
+		return Event{Type: EventCVar, Timestamp: timestamp, Data: map[string]string{"cvar": matches[1], "value": matches[2]}}, true
+	}
+
+	return Event{Type: EventUnknown, Timestamp: timestamp}, false
 }
 
 // ClassFromString converts a class token to a PlayerClass.
 func ClassFromString(s string) PlayerClass { return parseClass(s) }
 
+// StatusSeedEvent builds a synthetic event used to seed a player from RCON status.
+func StatusSeedEvent(pl Player) Event {
+	return Event{Type: EventStatusSeed, Source: pl}
+}
+
+// ResetEvent builds a synthetic event that clears the entire scoreboard.
+func ResetEvent() Event {
+	return Event{Type: EventReset}
+}
+
 // ParseCVar parses a raw Source engine cvar line (e.g. `"mp_timelimit" = "30"`)
 // without a leading log timestamp. It returns the cvar name and value.
-func ParseCVar(line string) (name, value string, ok bool) {
+func ParseCVar(line string) (string, string, bool) {
 	line = strings.TrimSpace(line)
 	if m := rxCVar.FindStringSubmatch(line); m != nil {
 		return m[1], m[2], true
@@ -385,10 +382,10 @@ func ParseCVar(line string) (name, value string, ok bool) {
 // FindPlayers extracts every quoted player block from s and returns them as
 // Player values. Useful for parsing cappers lists and similar log payloads.
 func FindPlayers(s string) []Player {
-	var players []Player
 	matches := rxPlayerBlock.FindAllStringSubmatch(s, -1)
-	for _, m := range matches {
-		players = append(players, parsePlayer(m))
+	players := make([]Player, 0, len(matches))
+	for _, match := range matches {
+		players = append(players, parsePlayer(match))
 	}
 	return players
 }

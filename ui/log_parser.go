@@ -15,12 +15,18 @@ type chatMessage struct {
 	Message string
 }
 
-var (
-	ColorRed       color.Color = color.NRGBA{R: 167, G: 88, B: 75, A: 220}
-	ColorBlue      color.Color = color.NRGBA{R: 84, G: 125, B: 140, A: 220}
-	ColorConsole   color.Color = color.NRGBA{R: 160, G: 160, B: 160, A: 255}
-	ColorSpectator color.Color = color.NRGBA{R: 160, G: 160, B: 160, A: 255}
-)
+func chatColor(team logparse.Team) color.Color {
+	switch team {
+	case logparse.TeamRed:
+		return color.NRGBA{R: 167, G: 88, B: 75, A: 220}
+	case logparse.TeamBlu:
+		return color.NRGBA{R: 84, G: 125, B: 140, A: 220}
+	case logparse.TeamSpec:
+		return color.NRGBA{R: 160, G: 160, B: 160, A: 255}
+	default:
+		return color.NRGBA{R: 160, G: 160, B: 160, A: 255}
+	}
+}
 
 // chatFromLogEvent converts a parsed chat event into a display-ready chatMessage.
 func chatFromLogEvent(evt logparse.Event) (chatMessage, bool) {
@@ -28,21 +34,9 @@ func chatFromLogEvent(evt logparse.Event) (chatMessage, bool) {
 		return chatMessage{}, false
 	}
 
-	var c color.Color
-	switch evt.Source.Team {
-	case logparse.TeamRed:
-		c = ColorRed
-	case logparse.TeamBlu:
-		c = ColorBlue
-	case logparse.TeamSpec:
-		c = ColorSpectator
-	default:
-		c = ColorConsole
-	}
-
 	return chatMessage{
 		Time:    evt.Timestamp.Format(time.TimeOnly),
-		Color:   c,
+		Color:   chatColor(evt.Source.Team),
 		Name:    evt.Source.Name,
 		Message: evt.Data["message"],
 	}, true

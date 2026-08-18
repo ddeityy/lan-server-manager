@@ -1,17 +1,19 @@
-package rcon
+package rcon_test
 
 import (
+	"lan-server-manager/rcon"
 	"os"
 	"testing"
 )
 
 func TestParseStatus(t *testing.T) {
+	t.Parallel()
 	data, err := os.ReadFile("testdata/example_rcon_status_output.txt")
 	if err != nil {
 		t.Fatalf("read example file: %v", err)
 	}
 
-	info, err := ParseStatus(string(data))
+	info, err := rcon.ParseStatus(string(data))
 	if err != nil {
 		t.Fatalf("parse status: %v", err)
 	}

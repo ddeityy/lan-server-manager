@@ -27,37 +27,37 @@ func newActions(
 	onExecConfig,
 	onSendCustom func(),
 ) *Actions {
-	a := &Actions{}
+	actions := &Actions{}
 
-	a.serverPasswordEntry = widget.NewPasswordEntry()
+	actions.serverPasswordEntry = widget.NewPasswordEntry()
 
-	a.mapSelect = widget.NewSelect(appConfig.MapsOrDefault(), func(value string) {
-		a.setMapSelection(value)
+	actions.mapSelect = widget.NewSelect(appConfig.MapsOrDefault(), func(value string) {
+		actions.setMapSelection(value)
 	})
-	a.setMapSelection(appConfig.MapsOrDefault()[0])
+	actions.setMapSelection(appConfig.MapsOrDefault()[0])
 
-	a.configSelect = widget.NewSelect(appConfig.ConfigsOrDefault(), nil)
-	a.configSelect.SetSelected(appConfig.ConfigsOrDefault()[0])
+	actions.configSelect = widget.NewSelect(appConfig.ConfigsOrDefault(), nil)
+	actions.configSelect.SetSelected(appConfig.ConfigsOrDefault()[0])
 
-	a.customCommandEntry = widget.NewEntry()
+	actions.customCommandEntry = widget.NewEntry()
 
-	a.changePasswordButton = widget.NewButton("Send", onChangePassword)
-	a.changeLevelButton = widget.NewButton("Send", onChangeLevel)
-	a.execConfigButton = widget.NewButton("Send", onExecConfig)
-	a.customCommandButton = widget.NewButton("Send", onSendCustom)
+	actions.changePasswordButton = widget.NewButton("Send", onChangePassword)
+	actions.changeLevelButton = widget.NewButton("Send", onChangeLevel)
+	actions.execConfigButton = widget.NewButton("Send", onExecConfig)
+	actions.customCommandButton = widget.NewButton("Send", onSendCustom)
 
-	a.bindEnter(a.serverPasswordEntry, a.changePasswordButton, onChangePassword)
-	a.bindEnter(a.customCommandEntry, a.customCommandButton, onSendCustom)
+	actions.bindEnter(actions.serverPasswordEntry, actions.changePasswordButton, onChangePassword)
+	actions.bindEnter(actions.customCommandEntry, actions.customCommandButton, onSendCustom)
 
-	a.statusLabel = widget.NewLabel("")
+	actions.statusLabel = widget.NewLabel("")
 
-	a.SetEnabled(false)
-	return a
+	actions.SetEnabled(false)
+	return actions
 }
 
 // bindEnter fires handler when Enter is pressed in the entry, as long as
 // the paired button is enabled (mirrors clicking it).
-func (a *Actions) bindEnter(entry *widget.Entry, button *widget.Button, handler func()) {
+func (actions *Actions) bindEnter(entry *widget.Entry, button *widget.Button, handler func()) {
 	entry.OnSubmitted = func(string) {
 		if !button.Disabled() {
 			handler()
@@ -67,13 +67,13 @@ func (a *Actions) bindEnter(entry *widget.Entry, button *widget.Button, handler 
 
 // setMapSelection sets the map dropdown's current value and renders the
 // remaining pool options so the currently selected map is not shown twice.
-func (a *Actions) setMapSelection(value string) {
+func (actions *Actions) setMapSelection(value string) {
 	maps := appConfig.MapsOrDefault()
 	valid := slices.Contains(maps, value)
 	if !valid {
-		a.mapSelect.Selected = ""
-		a.mapSelect.Options = append([]string(nil), maps...)
-		a.mapSelect.Refresh()
+		actions.mapSelect.Selected = ""
+		actions.mapSelect.Options = append([]string(nil), maps...)
+		actions.mapSelect.Refresh()
 		return
 	}
 
@@ -83,53 +83,55 @@ func (a *Actions) setMapSelection(value string) {
 			opts = append(opts, m)
 		}
 	}
-	a.mapSelect.Selected = value
-	a.mapSelect.Options = opts
-	a.mapSelect.Refresh()
+	actions.mapSelect.Selected = value
+	actions.mapSelect.Options = opts
+	actions.mapSelect.Refresh()
 }
 
-// View returns the actions form and status as a single canvas object.
-func (a *Actions) View() fyne.CanvasObject {
+// View returns the actions form and status as actions single canvas object.
+func (actions *Actions) View() fyne.CanvasObject {
 	return container.NewVBox(
 		widget.NewLabelWithStyle("Change server password", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		newActionRow(a.serverPasswordEntry, a.changePasswordButton),
+		newActionRow(actions.serverPasswordEntry, actions.changePasswordButton),
 		widget.NewLabelWithStyle("Change map", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		newActionRow(a.mapSelect, a.changeLevelButton),
+		newActionRow(actions.mapSelect, actions.changeLevelButton),
 		widget.NewLabelWithStyle("Exec config", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		newActionRow(a.configSelect, a.execConfigButton),
+		newActionRow(actions.configSelect, actions.execConfigButton),
 		widget.NewLabelWithStyle("Custom command", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		newActionRow(a.customCommandEntry, a.customCommandButton),
-		a.statusLabel,
+		newActionRow(actions.customCommandEntry, actions.customCommandButton),
+		actions.statusLabel,
 	)
 }
 
 // SetEnabled enables or disables all action send buttons. Inputs remain editable.
-func (a *Actions) SetEnabled(enabled bool) {
+func (actions *Actions) SetEnabled(enabled bool) {
 	setButtonsEnabled(enabled,
-		a.changePasswordButton,
-		a.changeLevelButton,
-		a.execConfigButton,
-		a.customCommandButton,
+		actions.changePasswordButton,
+		actions.changeLevelButton,
+		actions.execConfigButton,
+		actions.customCommandButton,
 	)
 }
 
 // ClearServerPassword clears the server password entry.
-func (a *Actions) ClearServerPassword() { a.serverPasswordEntry.SetText("") }
+func (actions *Actions) ClearServerPassword() { actions.serverPasswordEntry.SetText("") }
 
 // ClearCustomCommand clears the custom command entry.
-func (a *Actions) ClearCustomCommand() { a.customCommandEntry.SetText("") }
+func (actions *Actions) ClearCustomCommand() { actions.customCommandEntry.SetText("") }
 
 // SetStatus updates the status label at the bottom of the actions card.
-func (a *Actions) SetStatus(text string) { a.statusLabel.SetText(text) }
+func (actions *Actions) SetStatus(text string) { actions.statusLabel.SetText(text) }
 
 // SelectedMap returns the currently selected map.
-func (a *Actions) SelectedMap() string { return a.mapSelect.Selected }
+func (actions *Actions) SelectedMap() string { return actions.mapSelect.Selected }
 
 // SelectedConfig returns the currently selected exec config.
-func (a *Actions) SelectedConfig() string { return a.configSelect.Selected }
+func (actions *Actions) SelectedConfig() string { return actions.configSelect.Selected }
 
 // ServerPassword returns the server password field value.
-func (a *Actions) ServerPassword() string { return a.serverPasswordEntry.Text }
+func (actions *Actions) ServerPassword() string { return actions.serverPasswordEntry.Text }
 
 // SetServerPassword sets the server password field value.
-func (a *Actions) SetServerPassword(password string) { a.serverPasswordEntry.SetText(password) }
+func (actions *Actions) SetServerPassword(password string) {
+	actions.serverPasswordEntry.SetText(password)
+}

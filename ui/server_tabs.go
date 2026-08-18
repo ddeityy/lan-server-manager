@@ -27,72 +27,72 @@ type ServerTabs struct {
 
 // NewServerTabs creates a tab bar with the provided callbacks.
 func NewServerTabs(onSelected, onClosed func(*container.TabItem), onAdd func()) *ServerTabs {
-	t := &ServerTabs{
+	tabs := &ServerTabs{
 		onSelected: onSelected,
 		onClosed:   onClosed,
 		onAdd:      onAdd,
 	}
-	t.ExtendBaseWidget(t)
-	return t
+	tabs.ExtendBaseWidget(tabs)
+	return tabs
 }
 
 // Items returns the current tab items.
-func (t *ServerTabs) Items() []*container.TabItem {
-	return t.items
+func (tabs *ServerTabs) Items() []*container.TabItem {
+	return tabs.items
 }
 
 // SetItems replaces the full set of tabs and refreshes the bar.
-func (t *ServerTabs) SetItems(items []*container.TabItem) {
-	t.items = items
-	if t.selected >= len(t.items) {
-		t.selected = len(t.items) - 1
+func (tabs *ServerTabs) SetItems(items []*container.TabItem) {
+	tabs.items = items
+	if tabs.selected >= len(tabs.items) {
+		tabs.selected = len(tabs.items) - 1
 	}
-	if t.selected < 0 {
-		t.selected = 0
+	if tabs.selected < 0 {
+		tabs.selected = 0
 	}
-	t.Refresh()
+	tabs.Refresh()
 }
 
 // SelectIndex selects the tab at the given index.
-func (t *ServerTabs) SelectIndex(index int) {
-	if index < 0 || index >= len(t.items) {
+func (tabs *ServerTabs) SelectIndex(index int) {
+	if index < 0 || index >= len(tabs.items) {
 		return
 	}
-	if index == t.selected {
+	if index == tabs.selected {
 		return
 	}
-	t.selected = index
-	if t.onSelected != nil {
-		t.onSelected(t.items[index])
+	tabs.selected = index
+	if tabs.onSelected != nil {
+		tabs.onSelected(tabs.items[index])
 	}
-	t.Refresh()
+	tabs.Refresh()
 }
 
 // SelectedIndex returns the index of the currently selected tab.
-func (t *ServerTabs) SelectedIndex() int {
-	return t.selected
+func (tabs *ServerTabs) SelectedIndex() int {
+	return tabs.selected
 }
 
 // Remove removes a tab by value.
-func (t *ServerTabs) Remove(item *container.TabItem) {
-	for i, it := range t.items {
+func (tabs *ServerTabs) Remove(item *container.TabItem) {
+	for i, it := range tabs.items {
 		if it == item {
-			t.items = append(t.items[:i], t.items[i+1:]...)
-			if t.selected >= len(t.items) {
-				t.selected = len(t.items) - 1
+			tabs.items = append(tabs.items[:i], tabs.items[i+1:]...)
+			if tabs.selected >= len(tabs.items) {
+				tabs.selected = len(tabs.items) - 1
 			}
-			if t.selected < 0 {
-				t.selected = 0
+			if tabs.selected < 0 {
+				tabs.selected = 0
 			}
-			t.Refresh()
+			tabs.Refresh()
 			return
 		}
 	}
 }
 
 // CreateRenderer builds the tab bar renderer.
-func (t *ServerTabs) CreateRenderer() fyne.WidgetRenderer {
-	r := &serverTabsRenderer{tabs: t}
+func (tabs *ServerTabs) CreateRenderer() fyne.WidgetRenderer {
+	r := &serverTabsRenderer{tabs: tabs}
 	r.bar = container.NewHBox()
 	r.divider = canvas.NewRectangle(theme.Color(theme.ColorNameShadow))
 	r.updateBar()
@@ -211,27 +211,27 @@ func newTabButton(text string, selected bool) *tabButton {
 }
 
 func (b *tabButton) CreateRenderer() fyne.WidgetRenderer {
-	th := b.Theme()
-	v := fyne.CurrentApp().Settings().ThemeVariant()
+	currentTheme := b.Theme()
+	variant := fyne.CurrentApp().Settings().ThemeVariant()
 
 	// The standard button provides hover/tap feedback and hit testing.
-	bg := widget.NewButton("", func() {
+	button := widget.NewButton("", func() {
 		if b.onTapped != nil {
 			b.onTapped()
 		}
 	})
-	bg.Importance = widget.LowImportance
+	button.Importance = widget.LowImportance
 
-	indicator := canvas.NewRectangle(th.Color(theme.ColorNamePrimary, v))
+	indicator := canvas.NewRectangle(currentTheme.Color(theme.ColorNamePrimary, variant))
 	indicator.Hide()
 
-	label := canvas.NewText(b.text, th.Color(theme.ColorNameForeground, v))
+	label := canvas.NewText(b.text, currentTheme.Color(theme.ColorNameForeground, variant))
 	label.TextStyle.Bold = true
 	if strings.Contains(b.text, "＋") {
-		label.TextSize = th.Size(theme.SizeNameText) * 1.4
+		label.TextSize = currentTheme.Size(theme.SizeNameText) * 1.4
 	}
 
-	objects := []fyne.CanvasObject{bg, indicator, label}
+	objects := []fyne.CanvasObject{button, indicator, label}
 	var closeBtn *widget.Button
 	if b.onClosed != nil {
 		closeBtn = widget.NewButtonWithIcon("", theme.CancelIcon(), func() {
@@ -245,7 +245,7 @@ func (b *tabButton) CreateRenderer() fyne.WidgetRenderer {
 
 	return &tabButtonRenderer{
 		button:    b,
-		bg:        bg,
+		bg:        button,
 		indicator: indicator,
 		label:     label,
 		closeBtn:  closeBtn,
@@ -269,14 +269,14 @@ func (r *tabButtonRenderer) Objects() []fyne.CanvasObject {
 }
 
 func (r *tabButtonRenderer) MinSize() fyne.Size {
-	th := r.button.Theme()
-	padding := th.Size(theme.SizeNameInnerPadding) + th.Size(theme.SizeNamePadding)
+	currentTheme := r.button.Theme()
+	padding := currentTheme.Size(theme.SizeNameInnerPadding) + currentTheme.Size(theme.SizeNamePadding)
 	labelSize := r.label.MinSize()
 	width := labelSize.Width + padding*2
 	height := labelSize.Height + padding
 
 	if r.closeBtn != nil {
-		closeSize := th.Size(theme.SizeNameInlineIcon)
+		closeSize := currentTheme.Size(theme.SizeNameInlineIcon)
 		width += closeSize + padding
 		if closeSize > height-padding {
 			height = closeSize + padding
@@ -286,41 +286,41 @@ func (r *tabButtonRenderer) MinSize() fyne.Size {
 }
 
 func (r *tabButtonRenderer) Layout(size fyne.Size) {
-	th := r.button.Theme()
-	pad := th.Size(theme.SizeNameInnerPadding) + th.Size(theme.SizeNamePadding)
+	currentTheme := r.button.Theme()
+	pad := currentTheme.Size(theme.SizeNameInnerPadding) + currentTheme.Size(theme.SizeNamePadding)
 
 	r.bg.Move(fyne.NewPos(0, 0))
 	r.bg.Resize(size)
 
-	indicatorHeight := th.Size(theme.SizeNameSelectionRadius)
+	indicatorHeight := currentTheme.Size(theme.SizeNameSelectionRadius)
 	r.indicator.Move(fyne.NewPos(0, size.Height-indicatorHeight))
 	r.indicator.Resize(fyne.NewSize(size.Width, indicatorHeight))
 
 	labelWidth := size.Width - pad*2
 	if r.closeBtn != nil {
-		inlineIconSize := th.Size(theme.SizeNameInlineIcon)
+		inlineIconSize := currentTheme.Size(theme.SizeNameInlineIcon)
 		labelWidth -= inlineIconSize + pad
 	}
 	r.label.Move(fyne.NewPos(pad, (size.Height-r.label.MinSize().Height)/2))
 	r.label.Resize(fyne.NewSize(labelWidth, r.label.MinSize().Height))
 
 	if r.closeBtn != nil {
-		inlineIconSize := th.Size(theme.SizeNameInlineIcon)
+		inlineIconSize := currentTheme.Size(theme.SizeNameInlineIcon)
 		r.closeBtn.Move(fyne.NewPos(size.Width-inlineIconSize-pad, (size.Height-inlineIconSize)/2))
 		r.closeBtn.Resize(fyne.NewSquareSize(inlineIconSize))
 	}
 }
 
 func (r *tabButtonRenderer) Refresh() {
-	th := r.button.Theme()
-	v := fyne.CurrentApp().Settings().ThemeVariant()
+	currentTheme := r.button.Theme()
+	variant := fyne.CurrentApp().Settings().ThemeVariant()
 
 	if r.button.selected {
-		r.label.Color = th.Color(theme.ColorNamePrimary, v)
-		r.indicator.FillColor = th.Color(theme.ColorNamePrimary, v)
+		r.label.Color = currentTheme.Color(theme.ColorNamePrimary, variant)
+		r.indicator.FillColor = currentTheme.Color(theme.ColorNamePrimary, variant)
 		r.indicator.Show()
 	} else {
-		r.label.Color = th.Color(theme.ColorNameForeground, v)
+		r.label.Color = currentTheme.Color(theme.ColorNameForeground, variant)
 		r.indicator.Hide()
 	}
 

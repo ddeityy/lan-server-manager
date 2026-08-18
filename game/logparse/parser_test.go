@@ -1,18 +1,20 @@
-package logparse
+package logparse_test
 
 import (
+	"lan-server-manager/game/logparse"
 	"testing"
 	"time"
 )
 
 func TestParseChat(t *testing.T) {
+	t.Parallel()
 	line := `L 08/17/2026 - 21:43:59: "Deity.<3><[U:1:115754284]><Red>" say "etst"`
-	evt, ok := Parse(line)
+	evt, ok := logparse.Parse(line)
 	if !ok {
 		t.Fatalf("expected parse success")
 	}
-	if evt.Type != EventChat {
-		t.Errorf("type = %d, want EventChat", evt.Type)
+	if evt.Type != logparse.EventChat {
+		t.Errorf("type = %d, want logparse.EventChat", evt.Type)
 	}
 	if evt.Source.Name != "Deity." {
 		t.Errorf("name = %q, want Deity.", evt.Source.Name)
@@ -23,8 +25,8 @@ func TestParseChat(t *testing.T) {
 	if evt.Source.SteamID != "[U:1:115754284]" {
 		t.Errorf("steamid = %q, want [U:1:115754284]", evt.Source.SteamID)
 	}
-	if evt.Source.Team != TeamRed {
-		t.Errorf("team = %d, want TeamRed", evt.Source.Team)
+	if evt.Source.Team != logparse.TeamRed {
+		t.Errorf("team = %d, want logparse.TeamRed", evt.Source.Team)
 	}
 	if evt.Data["message"] != "etst" {
 		t.Errorf("message = %q, want etst", evt.Data["message"])
@@ -32,64 +34,62 @@ func TestParseChat(t *testing.T) {
 }
 
 func TestParseJoinedTeam(t *testing.T) {
+	t.Parallel()
 	line := `L 08/17/2026 - 21:44:00: "Deity.<3><[U:1:115754284]><>" joined team "Blue"`
-	evt, ok := Parse(line)
+	evt, ok := logparse.Parse(line)
 	if !ok {
 		t.Fatalf("expected parse success")
 	}
-	if evt.Type != EventJoinedTeam {
-		t.Errorf("type = %d, want EventJoinedTeam", evt.Type)
+	if evt.Type != logparse.EventJoinedTeam {
+		t.Errorf("type = %d, want logparse.EventJoinedTeam", evt.Type)
 	}
-	if evt.Source.Team != TeamBlu {
-		t.Errorf("team = %d, want TeamBlu", evt.Source.Team)
+	if evt.Source.Team != logparse.TeamBlu {
+		t.Errorf("team = %d, want logparse.TeamBlu", evt.Source.Team)
 	}
 }
 
 func TestParseKilled(t *testing.T) {
+	t.Parallel()
 	line := `L 08/17/2026 - 21:44:01: "Deity.<3><[U:1:115754284]><Red>" killed "Bob.<4><[U:1:2]><Blue>" with "scattergun" (attacker_position "1 2 3") (victim_position "4 5 6")`
-	evt, ok := Parse(line)
+	evt, ok := logparse.Parse(line)
 	if !ok {
 		t.Fatalf("expected parse success")
 	}
-	if evt.Type != EventKilled {
-		t.Errorf("type = %d, want EventKilled", evt.Type)
+	if evt.Type != logparse.EventKilled {
+		t.Errorf("type = %d, want logparse.EventKilled", evt.Type)
 	}
 	if evt.Target.Name != "Bob." {
 		t.Errorf("victim = %q, want Bob.", evt.Target.Name)
 	}
-	if evt.Target.Team != TeamBlu {
-		t.Errorf("victim team = %d, want TeamBlu", evt.Target.Team)
-	}
-	if evt.Data["weapon"] != "scattergun" {
-		t.Errorf("weapon = %q, want scattergun", evt.Data["weapon"])
+	if evt.Target.Team != logparse.TeamBlu {
+		t.Errorf("victim team = %d, want logparse.TeamBlu", evt.Target.Team)
 	}
 }
 
 func TestParseDamage(t *testing.T) {
+	t.Parallel()
 	line := `L 08/17/2026 - 21:44:02: "Deity.<3><[U:1:115754284]><Red>" triggered "damage" against "Bob.<4><[U:1:2]><Blue>" (damage "35") (weapon "scattergun")`
-	evt, ok := Parse(line)
+	evt, ok := logparse.Parse(line)
 	if !ok {
 		t.Fatalf("expected parse success")
 	}
-	if evt.Type != EventDamage {
-		t.Errorf("type = %d, want EventDamage", evt.Type)
+	if evt.Type != logparse.EventDamage {
+		t.Errorf("type = %d, want logparse.EventDamage", evt.Type)
 	}
 	if evt.Data["damage"] != "35" {
 		t.Errorf("damage = %q, want 35", evt.Data["damage"])
 	}
-	if evt.Data["weapon"] != "scattergun" {
-		t.Errorf("weapon = %q, want scattergun", evt.Data["weapon"])
-	}
 }
 
 func TestParsePointCaptured(t *testing.T) {
+	t.Parallel()
 	line := `L 08/17/2026 - 21:44:03: Team "Blue" triggered "pointcaptured" (cp "2") (cpname "Middle") (numcappers "2")`
-	evt, ok := Parse(line)
+	evt, ok := logparse.Parse(line)
 	if !ok {
 		t.Fatalf("expected parse success")
 	}
-	if evt.Type != EventPointCaptured {
-		t.Errorf("type = %d, want EventPointCaptured", evt.Type)
+	if evt.Type != logparse.EventPointCaptured {
+		t.Errorf("type = %d, want logparse.EventPointCaptured", evt.Type)
 	}
 	if evt.Data["team"] != "Blue" {
 		t.Errorf("team = %q, want Blue", evt.Data["team"])
@@ -97,24 +97,26 @@ func TestParsePointCaptured(t *testing.T) {
 }
 
 func TestParseRoundStart(t *testing.T) {
+	t.Parallel()
 	line := `L 08/17/2026 - 21:44:04: World triggered "Round_Start"`
-	evt, ok := Parse(line)
+	evt, ok := logparse.Parse(line)
 	if !ok {
 		t.Fatalf("expected parse success")
 	}
-	if evt.Type != EventRoundStart {
-		t.Errorf("type = %d, want EventRoundStart", evt.Type)
+	if evt.Type != logparse.EventRoundStart {
+		t.Errorf("type = %d, want logparse.EventRoundStart", evt.Type)
 	}
 }
 
 func TestParseCVar(t *testing.T) {
+	t.Parallel()
 	line := `L 08/17/2026 - 21:44:05: "mp_timelimit" = "111" ( def. "0" )`
-	evt, ok := Parse(line)
+	evt, ok := logparse.Parse(line)
 	if !ok {
 		t.Fatalf("expected parse success")
 	}
-	if evt.Type != EventCVar {
-		t.Errorf("type = %d, want EventCVar", evt.Type)
+	if evt.Type != logparse.EventCVar {
+		t.Errorf("type = %d, want logparse.EventCVar", evt.Type)
 	}
 	if evt.Data["cvar"] != "mp_timelimit" {
 		t.Errorf("cvar = %q, want mp_timelimit", evt.Data["cvar"])
@@ -125,13 +127,14 @@ func TestParseCVar(t *testing.T) {
 }
 
 func TestParseHealed(t *testing.T) {
+	t.Parallel()
 	line := `L 08/17/2026 - 21:44:06: "Medic.<5><[U:1:9]><Red>" triggered "healed" against "Soldier.<4><[U:1:8]><Red>" (healing "100")`
-	evt, ok := Parse(line)
+	evt, ok := logparse.Parse(line)
 	if !ok {
 		t.Fatalf("expected parse success")
 	}
-	if evt.Type != EventHealed {
-		t.Errorf("type = %d, want EventHealed", evt.Type)
+	if evt.Type != logparse.EventHealed {
+		t.Errorf("type = %d, want logparse.EventHealed", evt.Type)
 	}
 	if evt.Source.Name != "Medic." {
 		t.Errorf("source name = %q, want Medic.", evt.Source.Name)
@@ -145,13 +148,14 @@ func TestParseHealed(t *testing.T) {
 }
 
 func TestParseDisconnected(t *testing.T) {
+	t.Parallel()
 	line := `L 08/18/2026 - 01:14:55: "SomeDude<11><BOT><Blue>" disconnected (reason "Kicked from server")`
-	evt, ok := Parse(line)
+	evt, ok := logparse.Parse(line)
 	if !ok {
 		t.Fatalf("expected parse success")
 	}
-	if evt.Type != EventDisconnected {
-		t.Errorf("type = %d, want EventDisconnected", evt.Type)
+	if evt.Type != logparse.EventDisconnected {
+		t.Errorf("type = %d, want logparse.EventDisconnected", evt.Type)
 	}
 	if evt.Source.Name != "SomeDude" {
 		t.Errorf("name = %q, want SomeDude", evt.Source.Name)
@@ -168,13 +172,14 @@ func TestParseDisconnected(t *testing.T) {
 }
 
 func TestParseServerCVar(t *testing.T) {
+	t.Parallel()
 	line := `L 08/18/2026 - 11:20:46: server_cvar: "mp_winlimit" "4"`
-	evt, ok := Parse(line)
+	evt, ok := logparse.Parse(line)
 	if !ok {
 		t.Fatalf("expected parse success")
 	}
-	if evt.Type != EventCVar {
-		t.Errorf("type = %d, want EventCVar", evt.Type)
+	if evt.Type != logparse.EventCVar {
+		t.Errorf("type = %d, want logparse.EventCVar", evt.Type)
 	}
 	if evt.Data["cvar"] != "mp_winlimit" {
 		t.Errorf("cvar = %q, want mp_winlimit", evt.Data["cvar"])
@@ -185,13 +190,14 @@ func TestParseServerCVar(t *testing.T) {
 }
 
 func TestParseMapChange(t *testing.T) {
+	t.Parallel()
 	line := `-------- Mapchange to cp_badlands --------`
-	evt, ok := Parse(line)
+	evt, ok := logparse.Parse(line)
 	if !ok {
 		t.Fatalf("expected parse success")
 	}
-	if evt.Type != EventMapChange {
-		t.Errorf("type = %d, want EventMapChange", evt.Type)
+	if evt.Type != logparse.EventMapChange {
+		t.Errorf("type = %d, want logparse.EventMapChange", evt.Type)
 	}
 	if evt.Data["map"] != "cp_badlands" {
 		t.Errorf("map = %q, want cp_badlands", evt.Data["map"])
@@ -199,8 +205,9 @@ func TestParseMapChange(t *testing.T) {
 }
 
 func TestParseTimestamp(t *testing.T) {
+	t.Parallel()
 	line := `L 08/17/2026 - 21:43:59: "Deity.<3><[U:1:115754284]><Red>" say "etst"`
-	evt, ok := Parse(line)
+	evt, ok := logparse.Parse(line)
 	if !ok {
 		t.Fatalf("expected parse success")
 	}

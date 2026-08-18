@@ -12,17 +12,17 @@ type SendMessage struct {
 }
 
 func newSendMessage(onSend func()) *SendMessage {
-	s := &SendMessage{
+	messagePanel := &SendMessage{
 		entry:  widget.NewEntry(),
 		button: widget.NewButton("Send", onSend),
 	}
-	s.entry.SetPlaceHolder("Type a message...")
-	s.entry.OnSubmitted = func(string) {
-		if !s.button.Disabled() {
+	messagePanel.entry.SetPlaceHolder("Type a message...")
+	messagePanel.entry.OnSubmitted = func(string) {
+		if !messagePanel.button.Disabled() {
 			onSend()
 		}
 	}
-	return s
+	return messagePanel
 }
 
 // Clear resets the message input field.

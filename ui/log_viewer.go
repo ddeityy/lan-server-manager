@@ -40,105 +40,105 @@ type LogViewer struct {
 }
 
 func newLogViewer() *LogViewer {
-	lv := &LogViewer{
+	viewer := &LogViewer{
 		clearButton: widget.NewButton("Clear", nil),
 		downButton:  widget.NewButtonWithIcon("", theme.MenuDropDownIcon(), nil),
 		statusLabel: widget.NewLabel(""),
 		logBox:      container.NewVBox(),
 		autoScroll:  true,
 	}
-	lv.logScroll = container.NewScroll(lv.logBox)
+	viewer.logScroll = container.NewScroll(viewer.logBox)
 
-	lv.clearButton.OnTapped = lv.clear
-	lv.downButton.OnTapped = lv.scrollDown
+	viewer.clearButton.OnTapped = viewer.clear
+	viewer.downButton.OnTapped = viewer.scrollDown
 
-	return lv
+	return viewer
 }
 
 // View returns the logs card as a single canvas object.
-func (lv *LogViewer) View() fyne.CanvasObject {
+func (viewer *LogViewer) View() fyne.CanvasObject {
 	return widget.NewCard("Chat", "", container.NewBorder(
 		container.NewBorder(
 			nil, nil,
-			lv.statusLabel,
-			container.NewHBox(lv.clearButton, lv.downButton),
+			viewer.statusLabel,
+			container.NewHBox(viewer.clearButton, viewer.downButton),
 			nil,
 		),
 		nil, nil, nil,
-		lv.logScroll,
+		viewer.logScroll,
 	))
 }
 
 // SetTarget stores the log tail target.
-func (lv *LogViewer) SetTarget(target logs.Target) {
-	lv.target = target
+func (viewer *LogViewer) SetTarget(target logs.Target) {
+	viewer.target = target
 }
 
 // Target returns the current log tail target.
-func (lv *LogViewer) Target() logs.Target { return lv.target }
+func (viewer *LogViewer) Target() logs.Target { return viewer.target }
 
 // SetOnEvent registers a callback invoked for every parsed log event.
-func (lv *LogViewer) SetOnEvent(fn func(logparse.Event)) {
-	lv.onEvent = fn
+func (viewer *LogViewer) SetOnEvent(fn func(logparse.Event)) {
+	viewer.onEvent = fn
 }
 
 // Stop terminates any active log tail. It does not clear displayed messages.
-func (lv *LogViewer) Stop() {
-	logger.Infof("log viewer stopping tail for %q", lv.target.ContainerName)
-	lv.mu.Lock()
-	stream := lv.stream
-	lv.stream = nil
-	lv.clearCh = nil
-	lv.mu.Unlock()
+func (viewer *LogViewer) Stop() {
+	logger.Infof("log viewer stopping tail for %q", viewer.target.ContainerName)
+	viewer.mu.Lock()
+	stream := viewer.stream
+	viewer.stream = nil
+	viewer.clearCh = nil
+	viewer.mu.Unlock()
 
 	if stream != nil {
 		go stream.Stop()
 	}
-	if lv.done != nil {
-		close(lv.done)
-		lv.done = nil
+	if viewer.done != nil {
+		close(viewer.done)
+		viewer.done = nil
 	}
 }
 
-func (lv *LogViewer) start() error {
-	if lv.target.ContainerName == "" {
+func (viewer *LogViewer) start() error {
+	if viewer.target.ContainerName == "" {
 		return fmt.Errorf("enter container name")
 	}
-	logger.Infof("log viewer connecting to logs for %q (ssh_host=%q)", lv.target.ContainerName, lv.target.SSHHost)
+	logger.Infof("log viewer connecting to logs for %q (ssh_host=%q)", viewer.target.ContainerName, viewer.target.SSHHost)
 
-	stream, err := logs.Tail(lv.target)
+	stream, err := logs.Tail(viewer.target)
 	if err != nil {
-		return err
+		return fmt.Errorf("tail logs: %w", err)
 	}
 
-	in := make(chan chatMessage, maxLogLines)
+	msgCh := make(chan chatMessage, maxLogLines)
 	clearCh := make(chan struct{}, 1)
 	done := make(chan struct{})
 
-	lv.mu.Lock()
-	lv.stream = stream
-	lv.in = in
-	lv.clearCh = clearCh
-	lv.done = done
-	lv.mu.Unlock()
+	viewer.mu.Lock()
+	viewer.stream = stream
+	viewer.in = msgCh
+	viewer.clearCh = clearCh
+	viewer.done = done
+	viewer.mu.Unlock()
 
-	if lv.target.SSHHost != "" {
-		lv.statusLabel.SetText("Watching (ssh " + lv.target.SSHHost + ")...")
-		logger.Infof("log viewer watching %q via ssh %s", lv.target.ContainerName, lv.target.SSHHost)
+	if viewer.target.SSHHost != "" {
+		viewer.statusLabel.SetText("Watching (ssh " + viewer.target.SSHHost + ")...")
+		logger.Infof("log viewer watching %q via ssh %s", viewer.target.ContainerName, viewer.target.SSHHost)
 	} else {
-		lv.statusLabel.SetText("Watching...")
+		viewer.statusLabel.SetText("Watching...")
 	}
 
-	go lv.collect(in, clearCh, done)
-	go lv.route(stream, in, done)
+	go viewer.collect(msgCh, clearCh, done)
+	go viewer.route(stream, msgCh, done)
 
 	return nil
 }
 
-func (lv *LogViewer) clear() {
-	lv.mu.Lock()
-	clearCh := lv.clearCh
-	lv.mu.Unlock()
+func (viewer *LogViewer) clear() {
+	viewer.mu.Lock()
+	clearCh := viewer.clearCh
+	viewer.mu.Unlock()
 	if clearCh != nil {
 		select {
 		case clearCh <- struct{}{}:
@@ -147,25 +147,25 @@ func (lv *LogViewer) clear() {
 	}
 }
 
-func (lv *LogViewer) scrollDown() {
-	lv.autoScroll = true
+func (viewer *LogViewer) scrollDown() {
+	viewer.autoScroll = true
 	fyne.Do(func() {
-		lv.logScroll.ScrollToBottom()
-		lv.lastOffset = lv.logScroll.Offset.Y
+		viewer.logScroll.ScrollToBottom()
+		viewer.lastOffset = viewer.logScroll.Offset.Y
 	})
 }
 
-func (lv *LogViewer) route(stream *logs.Stream, in chan<- chatMessage, done <-chan struct{}) {
+func (viewer *LogViewer) route(stream *logs.Stream, messages chan<- chatMessage, done <-chan struct{}) {
 	defer func() {
-		logger.Infof("log viewer route ended for %q", lv.target.ContainerName)
-		lv.mu.Lock()
-		if lv.stream == stream {
-			lv.stream = nil
+		logger.Infof("log viewer route ended for %q", viewer.target.ContainerName)
+		viewer.mu.Lock()
+		if viewer.stream == stream {
+			viewer.stream = nil
 		}
-		lv.mu.Unlock()
+		viewer.mu.Unlock()
 		go stream.Stop()
 		fyne.Do(func() {
-			lv.statusLabel.SetText("Stopped")
+			viewer.statusLabel.SetText("Stopped")
 		})
 	}()
 
@@ -179,8 +179,8 @@ func (lv *LogViewer) route(stream *logs.Stream, in chan<- chatMessage, done <-ch
 			if !ok {
 				continue
 			}
-			if lv.onEvent != nil {
-				lv.onEvent(evt)
+			if viewer.onEvent != nil {
+				viewer.onEvent(evt)
 			}
 			if evt.Type != logparse.EventChat && evt.Type != logparse.EventChatTeam {
 				continue
@@ -190,7 +190,7 @@ func (lv *LogViewer) route(stream *logs.Stream, in chan<- chatMessage, done <-ch
 				continue
 			}
 			select {
-			case in <- chat:
+			case messages <- chat:
 			case <-done:
 				return
 			}
@@ -198,27 +198,27 @@ func (lv *LogViewer) route(stream *logs.Stream, in chan<- chatMessage, done <-ch
 			if !ok {
 				continue
 			}
-			logger.Errorf("log viewer tail error for %q: %v", lv.target.ContainerName, err)
+			logger.Errorf("log viewer tail error for %q: %v", viewer.target.ContainerName, err)
 			msg := err.Error()
-			fyne.Do(func() { lv.statusLabel.SetText("Error: " + msg) })
+			fyne.Do(func() { viewer.statusLabel.SetText("Error: " + msg) })
 		case <-done:
 			return
 		}
 	}
 }
 
-func (lv *LogViewer) collect(in <-chan chatMessage, clearCh <-chan struct{}, done <-chan struct{}) {
+func (viewer *LogViewer) collect(in <-chan chatMessage, clearCh <-chan struct{}, done <-chan struct{}) {
 	for {
 		select {
 		case msg, ok := <-in:
 			if !ok {
 				return
 			}
-			lv.appendLine(msg)
+			viewer.appendLine(msg)
 		case <-clearCh:
 			fyne.Do(func() {
-				lv.logBox.Objects = nil
-				lv.logBox.Refresh()
+				viewer.logBox.Objects = nil
+				viewer.logBox.Refresh()
 			})
 		case <-done:
 			return
@@ -226,12 +226,12 @@ func (lv *LogViewer) collect(in <-chan chatMessage, clearCh <-chan struct{}, don
 	}
 }
 
-func (lv *LogViewer) appendLine(msg chatMessage) {
+func (viewer *LogViewer) appendLine(msg chatMessage) {
 	fyne.Do(func() {
-		if lv.autoScroll {
-			diff := math.Abs(float64(lv.logScroll.Offset.Y - lv.lastOffset))
+		if viewer.autoScroll {
+			diff := math.Abs(float64(viewer.logScroll.Offset.Y - viewer.lastOffset))
 			if diff > 2 {
-				lv.autoScroll = false
+				viewer.autoScroll = false
 			}
 		}
 
@@ -240,16 +240,16 @@ func (lv *LogViewer) appendLine(msg chatMessage) {
 			chatText(msg.Name, msg.Color),
 			chatText(": "+msg.Message, color.NRGBA{R: 255, G: 255, B: 255, A: 255}),
 		)
-		lv.logBox.Add(row)
+		viewer.logBox.Add(row)
 
-		for len(lv.logBox.Objects) > maxLogLines {
-			lv.logBox.Objects = lv.logBox.Objects[1:]
+		for len(viewer.logBox.Objects) > maxLogLines {
+			viewer.logBox.Objects = viewer.logBox.Objects[1:]
 		}
-		lv.logBox.Refresh()
+		viewer.logBox.Refresh()
 
-		if lv.autoScroll {
-			lv.logScroll.ScrollToBottom()
-			lv.lastOffset = lv.logScroll.Offset.Y
+		if viewer.autoScroll {
+			viewer.logScroll.ScrollToBottom()
+			viewer.lastOffset = viewer.logScroll.Offset.Y
 		}
 	})
 }

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -26,9 +27,7 @@ func (p *ServerPanel) runAction(
 	logger.Infof("%s: %s", p.title, pending)
 
 	go func() {
-		p.rconMutex.Lock()
 		err := action()
-		p.rconMutex.Unlock()
 
 		fyne.Do(func() {
 			button.Enable()
@@ -99,11 +98,7 @@ func (p *ServerPanel) connect() {
 			p.setConnected(true)
 			p.refresh()
 			p.startLogTail()
-			go func() {
-				p.rconMutex.Lock()
-				defer p.rconMutex.Unlock()
-				p.queryTrackedCVars()
-			}()
+			go p.queryTrackedCVars()
 
 			if p.actions.serverPasswordEntry.Text != "" {
 				p.changeServerPassword()
@@ -125,34 +120,47 @@ func (p *ServerPanel) disconnect() {
 	})
 }
 
-func (p *ServerPanel) queryTrackedCVars() {
+func (p *ServerPanel) queryCVars(names []string) {
 	if p.client == nil {
 		return
 	}
-	for _, name := range TrackedCVarNames() {
+	for _, name := range names {
 		resp, err := p.client.ExecuteWithResponse(name)
 		if err != nil {
 			logger.Warnf("%s: query %s failed: %v", p.title, name, err)
+			p.cvars.ClearPending(name)
 			continue
 		}
-		for _, line := range strings.Split(resp, "\n") {
+
+		parsed := false
+		for line := range strings.SplitSeq(resp, "\n") {
 			line = strings.TrimSpace(line)
 			cvarName, value, ok := logparse.ParseCVar(line)
 			if !ok {
 				continue
 			}
+			parsed = true
 			logger.Infof("%s: queried %s = %s", p.title, cvarName, value)
 			p.applyCVar(cvarName, value)
+		}
+		if !parsed {
+			logger.Warnf("%s: query %s returned no parsable value:\n%s", p.title, name, resp)
+			p.cvars.ClearPending(name)
 		}
 	}
 }
 
+// queryTrackedCVars queries every tracked CVar. Used on initial connection to
+// populate the panel; config execs use queryCVars with only active names.
+func (p *ServerPanel) queryTrackedCVars() {
+	p.queryCVars(TrackedCVarNames())
+}
+
 func (p *ServerPanel) applyCVar(name, value string) {
-	p.scoreboard.Apply(logparse.Event{
+	p.actor.Events() <- logparse.Event{
 		Type: logparse.EventCVar,
 		Data: map[string]string{"cvar": name, "value": value},
-	})
-	fyne.Do(func() { p.scoreboardView.SetCVar(name, value) })
+	}
 }
 
 func (p *ServerPanel) startLogTail() {
@@ -241,8 +249,8 @@ func (p *ServerPanel) execConfig() {
 	}
 	logger.Infof("%s: executing config %s", p.title, configName)
 
-	pendingCVars := TrackedCVarNames()
-	p.scoreboardView.MarkCVarsPending(pendingCVars...)
+	pendingCVars := ActiveCVarNames()
+	p.cvars.MarkPending(pendingCVars...)
 
 	p.runAction(
 		p.actions.execConfigButton,
@@ -250,14 +258,8 @@ func (p *ServerPanel) execConfig() {
 		"Executed config "+configName,
 		"Exec config failed",
 		func() error { return p.client.ExecConfig(configName) },
-		func() {
-			go func() {
-				p.rconMutex.Lock()
-				defer p.rconMutex.Unlock()
-				p.queryTrackedCVars()
-			}()
-		},
-		func() { p.scoreboardView.ClearCVarsPending(pendingCVars...) },
+		func() { go p.queryCVars(pendingCVars) },
+		func() { p.cvars.ClearPending(pendingCVars...) },
 	)
 }
 
@@ -297,13 +299,11 @@ func (p *ServerPanel) kickPlayer(player scoreboard.PlayerStats) {
 
 	logger.Infof("%s: kicking player %d (%s)", p.title, uid, player.Name)
 	go func() {
-		p.rconMutex.Lock()
-		err := p.client.Kick(uid)
-		p.rconMutex.Unlock()
+		kickErr := p.client.Kick(uid)
 		fyne.Do(func() {
-			if err != nil {
-				logger.Errorf("%s: kick failed: %v", p.title, err)
-				p.actions.SetStatus("Kick failed: " + p.formatError(err))
+			if kickErr != nil {
+				logger.Errorf("%s: kick failed: %v", p.title, kickErr)
+				p.actions.SetStatus("Kick failed: " + p.formatError(kickErr))
 				return
 			}
 			logger.Infof("%s: kicked player %d", p.title, uid)
@@ -326,7 +326,7 @@ func (p *ServerPanel) sendCustomCommand() {
 
 	pendingCVars := trackedCVarNamesFromCommand(cmd)
 	if len(pendingCVars) > 0 {
-		p.scoreboardView.MarkCVarsPending(pendingCVars...)
+		p.cvars.MarkPending(pendingCVars...)
 	}
 
 	p.runAction(
@@ -334,8 +334,35 @@ func (p *ServerPanel) sendCustomCommand() {
 		"Sending: "+cmd,
 		"Sent: "+cmd,
 		"Command failed",
-		func() error { return p.client.Execute(cmd) },
-		p.actions.ClearCustomCommand,
-		func() { p.scoreboardView.ClearCVarsPending(pendingCVars...) },
+		func() error {
+			resp, err := p.client.ExecuteWithResponse(cmd)
+			if err != nil {
+				return fmt.Errorf("execute command: %w", err)
+			}
+			p.applyCVarResponse(resp)
+			return nil
+		},
+		func() {
+			p.actions.ClearCustomCommand()
+			if len(pendingCVars) > 0 {
+				go p.queryCVars(pendingCVars)
+			}
+		},
+		func() { p.cvars.ClearPending(pendingCVars...) },
 	)
+}
+
+func (p *ServerPanel) applyCVarResponse(resp string) {
+	for line := range strings.SplitSeq(resp, "\n") {
+		line = strings.TrimSpace(line)
+		cvarName, value, ok := logparse.ParseCVar(line)
+		if !ok {
+			continue
+		}
+		if !IsTrackedCVar(cvarName) {
+			continue
+		}
+		logger.Infof("%s: custom command parsed %s = %s", p.title, cvarName, value)
+		p.applyCVar(cvarName, value)
+	}
 }

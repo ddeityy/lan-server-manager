@@ -1,8 +1,8 @@
 [Details]
-Icon = "static/moscow.png"
+Icon = ""
 Name = "Server manager"
-Version = "0.1"
-Build = 6
+Version = "0.5"
+Build = 20
 
 [LinuxAndBSD]
 GenericName = "Server manager"

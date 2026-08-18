@@ -1,9 +1,11 @@
 package ui
 
 import (
+	"cmp"
 	"fmt"
 	"image/color"
-	"sort"
+	"slices"
+	"strconv"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -20,7 +22,7 @@ const scoreboardCellGap = float32(4)
 
 // Column titles used as identifiers for special rendering/sorting.
 const (
-	colClass = "CLS"
+	colClass = "Class"
 	colKick  = "Kick"
 	colKills = "K"
 	colName  = "Name"
@@ -33,100 +35,119 @@ type scoreboardColumn struct {
 	Less  func(a, b scoreboard.PlayerStats, elapsed time.Duration) bool
 }
 
+// lessOrdered returns a column Less function that orders rows by the value
+// extracted with get. It works for any [cmp.Ordered] type (int, float64, string, etc.).
+func lessOrdered[T cmp.Ordered](get func(p scoreboard.PlayerStats, elapsed time.Duration) T) func(a, b scoreboard.PlayerStats, elapsed time.Duration) bool {
+	return func(a, b scoreboard.PlayerStats, elapsed time.Duration) bool {
+		return get(a, elapsed) < get(b, elapsed)
+	}
+}
+
+const (
+	nameColumnWidth   = float32(170)
+	narrowColumnWidth = float32(40)
+	mediumColumnWidth = float32(55)
+	dmgColumnWidth    = float32(65)
+	dtColumnWidth     = float32(60)
+	kickColumnWidth   = float32(55)
+	scoreboardRowGap  = float32(2)
+	titleBarHeight    = float32(28)
+	titleBarMinWidth  = float32(200)
+	classOrderUnknown = 99
+)
+
 var scoreboardColumns = []scoreboardColumn{
 	{
 		Title: colName,
-		Width: 170,
+		Width: nameColumnWidth,
 		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return p.Name },
-		Less:  func(a, b scoreboard.PlayerStats, _ time.Duration) bool { return a.Name < b.Name },
+		Less:  lessOrdered(func(p scoreboard.PlayerStats, _ time.Duration) string { return p.Name }),
 	},
 	{
 		Title: colClass,
-		Width: 40,
-		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return "" },
-		Less: func(a, b scoreboard.PlayerStats, _ time.Duration) bool {
-			return classOrder(a.Class) < classOrder(b.Class)
-		},
+		Width: narrowColumnWidth,
+		Fmt:   func(_ scoreboard.PlayerStats, _ time.Duration) string { return "" },
+		Less:  lessOrdered(func(p scoreboard.PlayerStats, _ time.Duration) int { return classOrder(p.Class) }),
 	},
 	{
 		Title: colKills,
-		Width: 40,
-		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return fmt.Sprintf("%d", p.Kills) },
-		Less:  func(a, b scoreboard.PlayerStats, _ time.Duration) bool { return a.Kills < b.Kills },
+		Width: narrowColumnWidth,
+		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return strconv.Itoa(p.Kills) },
+		Less:  lessOrdered(func(p scoreboard.PlayerStats, _ time.Duration) int { return p.Kills }),
 	},
 	{
 		Title: "A",
-		Width: 40,
-		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return fmt.Sprintf("%d", p.Assists) },
-		Less:  func(a, b scoreboard.PlayerStats, _ time.Duration) bool { return a.Assists < b.Assists },
+		Width: narrowColumnWidth,
+		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return strconv.Itoa(p.Assists) },
+		Less:  lessOrdered(func(p scoreboard.PlayerStats, _ time.Duration) int { return p.Assists }),
 	},
 	{
 		Title: "D",
-		Width: 40,
-		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return fmt.Sprintf("%d", p.Deaths) },
-		Less:  func(a, b scoreboard.PlayerStats, _ time.Duration) bool { return a.Deaths < b.Deaths },
+		Width: narrowColumnWidth,
+		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return strconv.Itoa(p.Deaths) },
+		Less:  lessOrdered(func(p scoreboard.PlayerStats, _ time.Duration) int { return p.Deaths }),
 	},
 	{
 		Title: "DMG",
-		Width: 65,
-		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return fmt.Sprintf("%d", p.Damage) },
-		Less:  func(a, b scoreboard.PlayerStats, _ time.Duration) bool { return a.Damage < b.Damage },
+		Width: dmgColumnWidth,
+		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return strconv.Itoa(p.Damage) },
+		Less:  lessOrdered(func(p scoreboard.PlayerStats, _ time.Duration) int { return p.Damage }),
 	},
 	{
 		Title: "DPM",
-		Width: 55,
+		Width: mediumColumnWidth,
 		Fmt: func(p scoreboard.PlayerStats, elapsed time.Duration) string {
 			return fmt.Sprintf("%.0f", p.DPM(elapsed))
 		},
-		Less: func(a, b scoreboard.PlayerStats, elapsed time.Duration) bool { return a.DPM(elapsed) < b.DPM(elapsed) },
+		Less: lessOrdered(func(p scoreboard.PlayerStats, elapsed time.Duration) float64 { return p.DPM(elapsed) }),
 	},
 	{
 		Title: "DT",
-		Width: 60,
-		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return fmt.Sprintf("%d", p.DamageTaken) },
-		Less:  func(a, b scoreboard.PlayerStats, _ time.Duration) bool { return a.DamageTaken < b.DamageTaken },
+		Width: dtColumnWidth,
+		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return strconv.Itoa(p.DamageTaken) },
+		Less:  lessOrdered(func(p scoreboard.PlayerStats, _ time.Duration) int { return p.DamageTaken }),
 	},
 	{
 		Title: "DTM",
-		Width: 55,
+		Width: mediumColumnWidth,
 		Fmt: func(p scoreboard.PlayerStats, elapsed time.Duration) string {
 			return fmt.Sprintf("%.0f", p.DTM(elapsed))
 		},
-		Less: func(a, b scoreboard.PlayerStats, elapsed time.Duration) bool { return a.DTM(elapsed) < b.DTM(elapsed) },
+		Less: lessOrdered(func(p scoreboard.PlayerStats, elapsed time.Duration) float64 { return p.DTM(elapsed) }),
 	},
 	{
 		Title: "Heals",
-		Width: 55,
-		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return fmt.Sprintf("%d", p.Heals) },
-		Less:  func(a, b scoreboard.PlayerStats, _ time.Duration) bool { return a.Heals < b.Heals },
+		Width: mediumColumnWidth,
+		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return strconv.Itoa(p.Heals) },
+		Less:  lessOrdered(func(p scoreboard.PlayerStats, _ time.Duration) int { return p.Heals }),
 	},
 	{
 		Title: "Cap",
-		Width: 35,
-		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return fmt.Sprintf("%d", p.Caps) },
-		Less:  func(a, b scoreboard.PlayerStats, _ time.Duration) bool { return a.Caps < b.Caps },
+		Width: float32(35),
+		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return strconv.Itoa(p.Caps) },
+		Less:  lessOrdered(func(p scoreboard.PlayerStats, _ time.Duration) int { return p.Caps }),
 	},
 	{
 		Title: "KD",
-		Width: 45,
+		Width: float32(45),
 		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return fmt.Sprintf("%.2f", p.KD()) },
-		Less:  func(a, b scoreboard.PlayerStats, _ time.Duration) bool { return a.KD() < b.KD() },
+		Less:  lessOrdered(func(p scoreboard.PlayerStats, _ time.Duration) float64 { return p.KD() }),
 	},
 	{
 		Title: "KAD",
-		Width: 55,
+		Width: mediumColumnWidth,
 		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return fmt.Sprintf("%.2f", p.KAD()) },
-		Less:  func(a, b scoreboard.PlayerStats, _ time.Duration) bool { return a.KAD() < b.KAD() },
+		Less:  lessOrdered(func(p scoreboard.PlayerStats, _ time.Duration) float64 { return p.KAD() }),
 	},
 	{
 		Title: "Ping",
-		Width: 45,
-		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return fmt.Sprintf("%d", p.Ping) },
-		Less:  func(a, b scoreboard.PlayerStats, _ time.Duration) bool { return a.Ping < b.Ping },
+		Width: float32(45),
+		Fmt:   func(p scoreboard.PlayerStats, _ time.Duration) string { return strconv.Itoa(p.Ping) },
+		Less:  lessOrdered(func(p scoreboard.PlayerStats, _ time.Duration) int { return p.Ping }),
 	},
 	{
 		Title: colKick,
-		Width: 55,
+		Width: kickColumnWidth,
 	},
 }
 
@@ -140,7 +161,6 @@ var (
 type ScoreboardView struct {
 	redTable   *teamTable
 	bluTable   *teamTable
-	cvars      *CVarPanel
 	unassigned *fyne.Container
 	onKick     func(scoreboard.PlayerStats)
 }
@@ -149,7 +169,6 @@ func newScoreboardView() *ScoreboardView {
 	return &ScoreboardView{
 		redTable:   newTeamTable("RED", redTeamColor, fyne.TextAlignLeading, false),
 		bluTable:   newTeamTable("BLU", bluTeamColor, fyne.TextAlignTrailing, true),
-		cvars:      newCVarPanel(),
 		unassigned: container.NewVBox(),
 	}
 }
@@ -161,27 +180,11 @@ func (sv *ScoreboardView) SetOnKick(fn func(scoreboard.PlayerStats)) {
 	sv.bluTable.setOnKick(fn)
 }
 
-// Update replaces the displayed rosters, team scores, and unassigned players.
-// The elapsed duration is used for DPM/DTM columns.
-func (sv *ScoreboardView) Update(red, blu, unassigned []scoreboard.PlayerStats, elapsed time.Duration, redScore, bluScore int) {
-	sv.redTable.update(red, elapsed, redScore)
-	sv.bluTable.update(blu, elapsed, bluScore)
-	sv.updateUnassigned(unassigned)
-}
-
-// SetCVar updates the value displayed for a tracked CVar.
-func (sv *ScoreboardView) SetCVar(name, value string) {
-	sv.cvars.Set(name, value)
-}
-
-// MarkCVarsPending highlights the listed CVars as changed from the UI.
-func (sv *ScoreboardView) MarkCVarsPending(names ...string) {
-	sv.cvars.MarkPending(names...)
-}
-
-// ClearCVarsPending removes the pending highlight from the listed CVars.
-func (sv *ScoreboardView) ClearCVarsPending(names ...string) {
-	sv.cvars.ClearPending(names...)
+// Update renders the scoreboard snapshot, including rosters, scores, and elapsed time.
+func (sv *ScoreboardView) Update(snap scoreboard.Snapshot) {
+	sv.redTable.update(snap.Red, snap.Elapsed, snap.RedScore)
+	sv.bluTable.update(snap.Blu, snap.Elapsed, snap.BluScore)
+	sv.updateUnassigned(snap.Unassigned)
 }
 
 func (sv *ScoreboardView) updateUnassigned(players []scoreboard.PlayerStats) {
@@ -194,17 +197,16 @@ func (sv *ScoreboardView) updateUnassigned(players []scoreboard.PlayerStats) {
 	sv.unassigned.Refresh()
 }
 
-// Reset clears both tables, the CVar panel, and the unassigned list.
+// Reset clears both tables and the unassigned list.
 func (sv *ScoreboardView) Reset() {
 	sv.redTable.update(nil, 0, 0)
 	sv.bluTable.update(nil, 0, 0)
 	sv.updateUnassigned(nil)
-	sv.cvars.Reset()
 }
 
 // View returns the scoreboard as a single canvas object.
 func (sv *ScoreboardView) View() fyne.CanvasObject {
-	return container.NewBorder(sv.cvars.View(), sv.unassigned, nil, nil,
+	return container.NewBorder(nil, sv.unassigned, nil, nil,
 		container.NewHSplit(sv.bluTable.View(), sv.redTable.View()),
 	)
 }
@@ -234,7 +236,7 @@ type teamTable struct {
 }
 
 func newTeamTable(name string, teamColor color.Color, align fyne.TextAlign, reverse bool) *teamTable {
-	t := &teamTable{
+	table := &teamTable{
 		name:      name,
 		teamColor: teamColor,
 		align:     align,
@@ -242,218 +244,238 @@ func newTeamTable(name string, teamColor color.Color, align fyne.TextAlign, reve
 		sortAsc:   false,
 	}
 
-	t.columns = append([]scoreboardColumn(nil), scoreboardColumns...)
-	t.widths = make([]float32, len(scoreboardColumns))
+	table.columns = append([]scoreboardColumn(nil), scoreboardColumns...)
+	table.widths = make([]float32, len(scoreboardColumns))
 	for i, c := range scoreboardColumns {
-		t.widths[i] = c.Width
+		table.widths[i] = c.Width
 	}
 	if reverse {
-		for i, j := 0, len(t.columns)-1; i < j; i, j = i+1, j-1 {
-			t.columns[i], t.columns[j] = t.columns[j], t.columns[i]
-			t.widths[i], t.widths[j] = t.widths[j], t.widths[i]
+		for i, j := 0, len(table.columns)-1; i < j; i, j = i+1, j-1 {
+			table.columns[i], table.columns[j] = table.columns[j], table.columns[i]
+			table.widths[i], table.widths[j] = table.widths[j], table.widths[i]
 		}
 	}
 
-	for i, c := range t.columns {
+	for i, c := range table.columns {
 		if c.Title == colKills {
-			t.sortCol = i
+			table.sortCol = i
 			break
 		}
 	}
 
-	t.titleBar, t.titleLabel = makeTitleBar(name, teamColor)
-	t.header = makeHeader(t)
-	t.content = container.New(&fullWidthVBox{gap: 2})
-	t.scroll = container.NewVScroll(t.content)
-	t.scroll.SetMinSize(fyne.NewSize(rowTotalWidth(t.widths, scoreboardCellGap), 0))
-	t.setScore(0)
+	table.titleBar, table.titleLabel = makeTitleBar(name, teamColor)
+	table.header = makeHeader(table)
+	table.content = container.New(&fullWidthVBox{gap: scoreboardRowGap})
+	table.scroll = container.NewVScroll(table.content)
+	table.scroll.SetMinSize(fyne.NewSize(rowTotalWidth(table.widths, scoreboardCellGap), 0))
+	table.setScore(0)
 
-	return t
+	return table
 }
 
-func (t *teamTable) View() fyne.CanvasObject {
-	return container.NewBorder(t.titleBar, nil, nil, nil,
-		container.NewBorder(t.header, nil, nil, nil, t.scroll),
+func (table *teamTable) View() fyne.CanvasObject {
+	return container.NewBorder(table.titleBar, nil, nil, nil,
+		container.NewBorder(table.header, nil, nil, nil, table.scroll),
 	)
 }
 
-func (t *teamTable) update(players []scoreboard.PlayerStats, elapsed time.Duration, score int) {
-	t.data = append([]scoreboard.PlayerStats(nil), players...)
-	t.elapsed = elapsed
-	t.setScore(score)
-	t.sort()
-	t.rebuild()
+func (table *teamTable) update(players []scoreboard.PlayerStats, elapsed time.Duration, score int) {
+	table.data = append([]scoreboard.PlayerStats(nil), players...)
+	table.elapsed = elapsed
+	table.setScore(score)
+	table.sort()
+	table.rebuild()
 }
 
-func (t *teamTable) setScore(score int) {
-	t.score = score
-	if t.titleLabel == nil {
+func (table *teamTable) setScore(score int) {
+	table.score = score
+	if table.titleLabel == nil {
 		return
 	}
-	t.titleLabel.Text = fmt.Sprintf("%s : %d", t.name, score)
-	t.titleLabel.Refresh()
+	table.titleLabel.Text = fmt.Sprintf("%s : %d", table.name, score)
+	table.titleLabel.Refresh()
 }
 
-func (t *teamTable) sort() {
-	if t.sortCol < 0 || t.sortCol >= len(t.columns) {
-		t.sortCol = 0
-		t.sortAsc = false
+func (table *teamTable) sort() {
+	if table.sortCol < 0 || table.sortCol >= len(table.columns) {
+		table.sortCol = 0
+		table.sortAsc = false
 	}
-	col := t.columns[t.sortCol]
-	less := func(i, j int) bool {
-		if !t.sortAsc {
-			i, j = j, i
-		}
-		a, b := t.data[i], t.data[j]
+	col := table.columns[table.sortCol]
 
-		primary := a.Name < b.Name
-		if col.Less != nil {
-			primary = col.Less(a, b, t.elapsed)
-		}
-		if primary {
-			return true
+	less := func(left, other scoreboard.PlayerStats) int {
+		if !table.sortAsc {
+			left, other = other, left
 		}
 
-		// Col.Less says a >= b. Check the strictly-less reverse comparison to
-		// detect ties; ties are broken by name so the order stays deterministic.
-		reverse := b.Name < a.Name
+		var primary int
 		if col.Less != nil {
-			reverse = col.Less(b, a, t.elapsed)
+			if col.Less(left, other, table.elapsed) {
+				primary = -1
+			} else if col.Less(other, left, table.elapsed) {
+				primary = 1
+			}
+		} else {
+			primary = cmp.Compare(left.Name, other.Name)
 		}
-		if reverse {
-			return false
+		if primary != 0 {
+			return primary
 		}
-		return a.Name < b.Name
+
+		// Tie-break on player name so the order stays deterministic.
+		return cmp.Compare(left.Name, other.Name)
 	}
-	sort.SliceStable(t.data, less)
+
+	slices.SortStableFunc(table.data, less)
 }
 
-func (t *teamTable) setOnKick(fn func(scoreboard.PlayerStats)) {
-	t.onKick = fn
-	t.rebuild()
+func (table *teamTable) setOnKick(fn func(scoreboard.PlayerStats)) {
+	table.onKick = fn
+	table.rebuild()
 }
 
-func (t *teamTable) setSort(col int) {
-	if t.sortCol == col {
-		t.sortAsc = !t.sortAsc
+func (table *teamTable) setSort(col int) {
+	if table.sortCol == col {
+		table.sortAsc = !table.sortAsc
 	} else {
-		t.sortCol = col
-		t.sortAsc = true
+		table.sortCol = col
+		table.sortAsc = true
 	}
-	t.sort()
-	if t.refreshHeaderCells != nil {
-		t.refreshHeaderCells()
+	table.sort()
+	if table.refreshHeaderCells != nil {
+		table.refreshHeaderCells()
 	}
-	t.rebuild()
+	table.rebuild()
 }
 
-func (t *teamTable) rebuild() {
+func (table *teamTable) rebuild() {
 	// Reuse existing row containers so interactive widgets (kick buttons) are
 	// not destroyed and recreated on every log event, which breaks hover/click.
-	for len(t.rows) < len(t.data) {
-		t.rows = append(t.rows, makeTeamRow(t.columns, t.widths, t.teamColor, t.reverse))
+	for len(table.rows) < len(table.data) {
+		table.rows = append(table.rows, makeTeamRow(table.columns, table.widths, table.teamColor, table.reverse))
 	}
-	if len(t.rows) > len(t.data) {
-		t.rows = t.rows[:len(t.data)]
+	if len(table.rows) > len(table.data) {
+		table.rows = table.rows[:len(table.data)]
 	}
 
-	objects := make([]fyne.CanvasObject, len(t.rows))
-	for i, row := range t.rows {
-		t.updateRow(widget.ListItemID(i), row)
+	objects := make([]fyne.CanvasObject, len(table.rows))
+	for i, row := range table.rows {
+		table.updateRow(i, row)
 		objects[i] = row
 	}
-	t.content.Objects = objects
-	t.content.Refresh()
+	table.content.Objects = objects
+	table.content.Refresh()
 }
 
 func makeTitleBar(name string, c color.Color) (fyne.CanvasObject, *canvas.Text) {
-	bg := canvas.NewRectangle(c)
-	bg.FillColor = c
-	bg.StrokeColor = c
-	bg.StrokeWidth = 0
+	background := canvas.NewRectangle(c)
+	background.FillColor = c
+	background.StrokeColor = c
+	background.StrokeWidth = 0
 	lbl := canvas.NewText(name, color.White)
 	lbl.TextStyle = fyne.TextStyle{Bold: true}
 	lbl.TextSize = 16
-	bar := container.NewStack(bg, container.NewCenter(lbl))
-	bar.Resize(fyne.NewSize(200, 28))
+	bar := container.NewStack(background, container.NewCenter(lbl))
+	bar.Resize(fyne.NewSize(titleBarMinWidth, titleBarHeight))
 	return bar, lbl
 }
 
-func makeHeader(t *teamTable) *fyne.Container {
-	cells := make([]fyne.CanvasObject, len(t.columns))
-	for i, col := range t.columns {
+func makeHeader(table *teamTable) *fyne.Container {
+	cells := make([]fyne.CanvasObject, len(table.columns))
+	for idx, col := range table.columns {
 		btn := widget.NewButton(col.Title, func() {}) // placeholder OnTapped set below
 		btn.Importance = widget.LowImportance
-		cells[i] = btn
+		cells[idx] = btn
 	}
 
-	t.refreshHeaderCells = func() {
-		for i, col := range t.columns {
-			btn := cells[i].(*widget.Button)
+	table.refreshHeaderCells = func() {
+		for idx, col := range table.columns {
+			btn, ok := cells[idx].(*widget.Button)
+			if !ok {
+				continue
+			}
 			text := col.Title
-			if i == t.sortCol {
-				if t.sortAsc {
+			if idx == table.sortCol {
+				if table.sortAsc {
 					text += " ▲"
 				} else {
 					text += " ▼"
 				}
 			}
 			btn.SetText(text)
-			c := i
-			btn.OnTapped = func() { t.setSort(c) }
+			colIdx := idx
+			btn.OnTapped = func() { table.setSort(colIdx) }
 		}
 	}
-	t.refreshHeaderCells()
+	table.refreshHeaderCells()
 
-	return container.New(&scoreboardRowLayout{widths: t.widths, gap: scoreboardCellGap, rightAlign: t.reverse}, cells...)
+	return container.New(&scoreboardRowLayout{widths: table.widths, gap: scoreboardCellGap, rightAlign: table.reverse}, cells...)
 }
 
-func (t *teamTable) updateRow(id widget.ListItemID, o fyne.CanvasObject) {
-	row := o.(*fyne.Container)
-	player := t.data[id]
-	for i, col := range t.columns {
+func (table *teamTable) updateRow(id widget.ListItemID, o fyne.CanvasObject) {
+	row, ok := o.(*fyne.Container)
+	if !ok {
+		return
+	}
+	player := table.data[id]
+	for i, col := range table.columns {
 		cell := row.Objects[i]
 		switch col.Title {
 		case colClass:
-			stack := cell.(*fyne.Container)
-			img := stack.Objects[1].(*canvas.Image)
+			stack, okStack := cell.(*fyne.Container)
+			if !okStack {
+				continue
+			}
+			img, okImg := stack.Objects[1].(*canvas.Image)
+			if !okImg {
+				continue
+			}
 			img.Resource = assets.ClassIcon(player.Class)
 			img.Refresh()
 		case colKick:
-			btn := cell.(*widget.Button)
+			btn, okBtn := cell.(*widget.Button)
+			if !okBtn {
+				continue
+			}
 			p := player
 			btn.OnTapped = func() {
-				if t.onKick != nil {
-					t.onKick(p)
+				if table.onKick != nil {
+					table.onKick(p)
 				}
 			}
 		default:
-			stack := cell.(*fyne.Container)
-			lbl := stack.Objects[1].(*widget.Label)
-			lbl.SetText(col.Fmt(player, t.elapsed))
-			lbl.Alignment = t.align
+			stack, okStack := cell.(*fyne.Container)
+			if !okStack {
+				continue
+			}
+			lbl, okLabel := stack.Objects[1].(*widget.Label)
+			if !okLabel {
+				continue
+			}
+			lbl.SetText(col.Fmt(player, table.elapsed))
+			lbl.Alignment = table.align
 		}
 	}
 }
 
 func makeTeamRow(columns []scoreboardColumn, widths []float32, teamColor color.Color, reverse bool) *fyne.Container {
 	cells := make([]fyne.CanvasObject, len(columns))
-	for i, col := range columns {
+	for idx, col := range columns {
 		if col.Title == colClass {
-			bg := canvas.NewRectangle(teamColor)
-			bg.FillColor = teamColor
+			background := canvas.NewRectangle(teamColor)
+			background.FillColor = teamColor
 			img := canvas.NewImageFromResource(nil)
 			img.FillMode = canvas.ImageFillContain
-			cells[i] = container.NewStack(bg, img)
+			cells[idx] = container.NewStack(background, img)
 			continue
 		}
 		if col.Title == colKick {
 			btn := widget.NewButton("Kick", nil)
 			btn.Importance = widget.DangerImportance
-			cells[i] = btn
+			cells[idx] = btn
 			continue
 		}
-		cells[i] = newDatumCell(teamColor)
+		cells[idx] = newDatumCell(teamColor)
 	}
 	return container.New(&scoreboardRowLayout{widths: widths, gap: scoreboardCellGap, rightAlign: reverse}, cells...)
 }
@@ -476,17 +498,17 @@ type scoreboardRowLayout struct {
 
 func (l *scoreboardRowLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	total := l.totalWidth()
-	x := float32(0)
+	posX := float32(0)
 	if l.rightAlign && size.Width >= total {
-		x = size.Width - total
+		posX = size.Width - total
 	}
-	for i, obj := range objects {
-		w := l.widths[i]
-		obj.Move(fyne.NewPos(x, 0))
+	for idx, obj := range objects {
+		w := l.widths[idx]
+		obj.Move(fyne.NewPos(posX, 0))
 		obj.Resize(fyne.NewSize(w, size.Height))
-		x += w
-		if i < len(objects)-1 {
-			x += l.gap
+		posX += w
+		if idx < len(objects)-1 {
+			posX += l.gap
 		}
 	}
 }
@@ -514,14 +536,14 @@ type fullWidthVBox struct {
 }
 
 func (l *fullWidthVBox) Layout(objects []fyne.CanvasObject, size fyne.Size) {
-	y := float32(0)
-	for i, obj := range objects {
+	posY := float32(0)
+	for idx, obj := range objects {
 		h := obj.MinSize().Height
-		obj.Move(fyne.NewPos(0, y))
+		obj.Move(fyne.NewPos(0, posY))
 		obj.Resize(fyne.NewSize(size.Width, h))
-		y += h
-		if i < len(objects)-1 {
-			y += l.gap
+		posY += h
+		if idx < len(objects)-1 {
+			posY += l.gap
 		}
 	}
 }
@@ -529,13 +551,13 @@ func (l *fullWidthVBox) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 func (l *fullWidthVBox) MinSize(objects []fyne.CanvasObject) fyne.Size {
 	maxW := float32(0)
 	totalH := float32(0)
-	for i, obj := range objects {
+	for idx, obj := range objects {
 		s := obj.MinSize()
 		if s.Width > maxW {
 			maxW = s.Width
 		}
 		totalH += s.Height
-		if i < len(objects)-1 {
+		if idx < len(objects)-1 {
 			totalH += l.gap
 		}
 	}
@@ -572,7 +594,11 @@ func classOrder(c logparse.PlayerClass) int {
 		return 7
 	case logparse.ClassSpy:
 		return 8
+	case logparse.ClassSpectator:
+		return 9
+	case logparse.ClassUnknown:
+		return classOrderUnknown
 	default:
-		return 99
+		return classOrderUnknown
 	}
 }

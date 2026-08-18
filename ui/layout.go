@@ -26,17 +26,17 @@ func (l *actionRowLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 }
 
 func (l *actionRowLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
-	var h, totalW float32
-	for i, obj := range objects {
-		if mh := obj.MinSize().Height; mh > h {
-			h = mh
+	var maxHeight, totalW float32
+	for idx, obj := range objects {
+		if minH := obj.MinSize().Height; minH > maxHeight {
+			maxHeight = minH
 		}
 		totalW += obj.MinSize().Width
-		if i < len(objects)-1 {
+		if idx < len(objects)-1 {
 			totalW += actionRowGap
 		}
 	}
-	return fyne.NewSize(totalW, h)
+	return fyne.NewSize(totalW, maxHeight)
 }
 
 func newActionRow(left, right fyne.CanvasObject) *fyne.Container {

@@ -47,6 +47,8 @@ func classFileName(class logparse.PlayerClass) string {
 		return "sniper"
 	case logparse.ClassSpy:
 		return "spy"
+	case logparse.ClassUnknown, logparse.ClassSpectator:
+		return "allclass"
 	default:
 		return "allclass"
 	}
@@ -73,6 +75,10 @@ func ClassName(class logparse.PlayerClass) string {
 		return "Sniper"
 	case logparse.ClassSpy:
 		return "Spy"
+	case logparse.ClassUnknown:
+		return "Unknown"
+	case logparse.ClassSpectator:
+		return "Spectator"
 	default:
 		return fmt.Sprintf("Class(%d)", class)
 	}

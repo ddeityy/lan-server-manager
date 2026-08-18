@@ -4,7 +4,6 @@ import (
 	"strconv"
 
 	"lan-server-manager/game/logparse"
-	"lan-server-manager/game/scoreboard"
 	"lan-server-manager/logger"
 	"lan-server-manager/rcon"
 )
@@ -30,7 +29,8 @@ func (p *ServerPanel) resetInfo() {
 	logger.Infof("%s: resetting info", p.title)
 	p.serverInfo.Reset()
 	p.scoreboardView.Reset()
-	p.scoreboard.Reset()
+	p.cvars.Reset()
+	p.actor.Events() <- logparse.ResetEvent()
 }
 
 func (p *ServerPanel) updateInfo(info rcon.ServerInfo, err error) {
@@ -50,20 +50,13 @@ func (p *ServerPanel) updateInfo(info rcon.ServerInfo, err error) {
 		p.updateTitle(info.Hostname)
 	}
 
-	for _, rp := range info.Players {
-		uid := strconv.Itoa(rp.UserID)
-		key := scoreboard.PlayerKey(uid, rp.UniqueID)
-		if _, ok := p.scoreboard.Player(key); !ok {
-			p.scoreboard.Upsert(logparse.Player{
-				Name:    rp.Name,
-				UserID:  uid,
-				SteamID: rp.UniqueID,
-			})
-		}
-		p.scoreboard.SetPing(key, rp.Ping)
+	for _, rconPlayer := range info.Players {
+		uid := strconv.Itoa(rconPlayer.UserID)
+		p.actor.Events() <- logparse.StatusSeedEvent(logparse.Player{
+			Name:    rconPlayer.Name,
+			UserID:  uid,
+			SteamID: rconPlayer.UniqueID,
+			Ping:    rconPlayer.Ping,
+		})
 	}
-
-	red, blu, _, unassigned := p.scoreboard.TeamsAndUnassigned()
-	redScore, bluScore := p.scoreboard.Scores()
-	p.scoreboardView.Update(red, blu, unassigned, p.scoreboard.TimeSinceStart(), redScore, bluScore)
 }

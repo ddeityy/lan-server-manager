@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -12,7 +11,7 @@ import (
 	"lan-server-manager/rcon"
 )
 
-const defaultRefreshInterval = 1
+const defaultRefreshInterval = 5
 
 // ServerPanel is the full UI for a single TF2 server connection.
 type ServerPanel struct {
@@ -26,9 +25,8 @@ type ServerPanel struct {
 	scoreboardView *ScoreboardView
 	logs           *LogViewer
 	sendMessage    *SendMessage
-	scoreboard     *scoreboard.Scoreboard
-
-	rconMutex      sync.Mutex
+	cvars          *CVarPanel
+	actor          *scoreboard.Actor
 	refreshTicker  *time.Ticker
 	refreshStop    chan struct{}
 	pendingMapSync bool
@@ -39,64 +37,78 @@ type ServerPanel struct {
 
 // NewServerPanel creates a new tab panel with default connection values.
 func NewServerPanel(window fyne.Window, title string, onTitleChanged func()) *ServerPanel {
-	p := &ServerPanel{
+	panel := &ServerPanel{
 		window:         window,
 		onTitleChanged: onTitleChanged,
 		title:          title,
 	}
 
-	p.serverInfo = newServerInfo(
+	panel.serverInfo = newServerInfo(
 		title,
-		p.handleIntervalChanged,
+		panel.handleIntervalChanged,
 	)
 
-	p.connection = newConnection(p.connect, p.disconnect)
-	p.actions = newActions(
-		p.changeServerPassword,
-		p.changeLevel,
-		p.execConfig,
-		p.sendCustomCommand,
+	panel.connection = newConnection(panel.connect, panel.disconnect)
+	panel.actions = newActions(
+		panel.changeServerPassword,
+		panel.changeLevel,
+		panel.execConfig,
+		panel.sendCustomCommand,
 	)
-	p.sendMessage = newSendMessage(p.sendMessageAction)
-	p.scoreboardView = newScoreboardView()
-	p.scoreboardView.SetOnKick(p.kickPlayer)
-	p.logs = newLogViewer()
-	p.scoreboard = scoreboard.New()
-	p.logs.SetOnEvent(func(evt logparse.Event) {
-		p.scoreboard.Apply(evt)
-		fyne.Do(func() {
-			if evt.Type == logparse.EventCVar {
-				if name := evt.Data["cvar"]; name != "" {
-					p.scoreboardView.SetCVar(name, evt.Data["value"])
-				}
-			}
-			red, blu, _, unassigned := p.scoreboard.TeamsAndUnassigned()
-			redScore, bluScore := p.scoreboard.Scores()
-			p.scoreboardView.Update(red, blu, unassigned, p.scoreboard.TimeSinceStart(), redScore, bluScore)
-		})
+	panel.sendMessage = newSendMessage(panel.sendMessageAction)
+	panel.scoreboardView = newScoreboardView()
+	panel.scoreboardView.SetOnKick(panel.kickPlayer)
+	panel.logs = newLogViewer()
+	panel.cvars = newCVarPanel()
+	panel.actor = scoreboard.NewActor(8)
+	panel.logs.SetOnEvent(func(evt logparse.Event) {
+		panel.actor.Events() <- evt
 	})
+	go panel.consumeSnapshots()
 
-	p.buildUI(title)
-	return p
+	panel.buildUI(title)
+	return panel
 }
 
 // TabItem returns the tab data for this panel.
-func (p *ServerPanel) TabItem() *container.TabItem {
-	return p.tabItem
+func (panel *ServerPanel) TabItem() *container.TabItem {
+	return panel.tabItem
 }
 
-func (p *ServerPanel) updateTitle(title string) {
-	p.title = title
-	p.tabItem.Text = title
-	p.serverInfo.SetName(title)
-	if p.onTitleChanged != nil {
-		p.onTitleChanged()
+func (panel *ServerPanel) updateTitle(title string) {
+	panel.title = title
+	panel.tabItem.Text = title
+	panel.serverInfo.SetName(title)
+	if panel.onTitleChanged != nil {
+		panel.onTitleChanged()
 	}
 }
 
-func (p *ServerPanel) handleIntervalChanged() {
-	if p.client == nil {
+func (panel *ServerPanel) handleIntervalChanged() {
+	if panel.client == nil {
 		return
 	}
-	p.startAutoRefresh()
+	panel.startAutoRefresh()
+}
+
+func (panel *ServerPanel) consumeSnapshots() {
+	for snap := range panel.actor.Snapshots() {
+		fyne.Do(func(snap scoreboard.Snapshot) func() {
+			return func() { panel.applySnapshot(snap) }
+		}(snap))
+	}
+}
+
+func (panel *ServerPanel) applySnapshot(snap scoreboard.Snapshot) {
+	panel.scoreboardView.Update(snap)
+	for name, value := range snap.CVars {
+		if value == "" {
+			continue
+		}
+		if value == panel.cvars.Value(name) {
+			panel.cvars.ClearPending(name)
+			continue
+		}
+		panel.cvars.Set(name, value)
+	}
 }

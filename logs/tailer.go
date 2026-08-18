@@ -50,33 +50,35 @@ func Tail(target Target) (*Stream, error) {
 func tailLocal(pattern string) (*Stream, error) {
 	logger.Infof("Tailing container matching %q locally", pattern)
 
-	containerID, err := resolveContainerIDLocal(pattern)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	containerID, err := resolveContainerIDLocal(ctx, pattern)
 	if err != nil {
+		cancel()
 		logger.Errorf("Local container resolve failed for %q: %v", pattern, err)
 		return nil, err
 	}
 	logger.Infof("Resolved local container ID %s", containerID)
 
-	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, "docker", "logs", "-f", "--tail", "100", containerID)
 	return runCommand(ctx, cmd, cancel)
 }
 
 func tailSSH(target Target) (*Stream, error) {
 	logger.Infof("Preparing SSH config for %s as user %q", target.SSHHost, target.SSHUser)
-	config, err := sshClientConfig(target)
+	sshConfig, err := sshClientConfig(target)
 	if err != nil {
 		logger.Errorf("SSH config failed: %v", err)
 		return nil, err
 	}
 
 	host := target.SSHHost
-	if _, _, err := net.SplitHostPort(host); err != nil {
+	if _, _, splitErr := net.SplitHostPort(host); splitErr != nil {
 		host = net.JoinHostPort(host, "22")
 	}
 
 	logger.Infof("Dialing %s", host)
-	client, err := ssh.Dial("tcp", host, config)
+	client, err := ssh.Dial("tcp", host, sshConfig)
 	if err != nil {
 		logger.Errorf("SSH dial to %s failed: %v", host, err)
 		return nil, fmt.Errorf("ssh dial: %w", err)
@@ -112,10 +114,10 @@ func tailSSH(target Target) (*Stream, error) {
 
 	cmd := "docker logs -f --tail 100 " + containerID
 	logger.Infof("Running remote command: %s", cmd)
-	if err := session.Start(cmd); err != nil {
+	if startErr := session.Start(cmd); startErr != nil {
 		closeSSHSession(session)
 		closeSSHClient(client)
-		return nil, fmt.Errorf("start remote command: %w", err)
+		return nil, fmt.Errorf("start remote command: %w", startErr)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -125,15 +127,11 @@ func tailSSH(target Target) (*Stream, error) {
 		closeSSHClient(client)
 	}
 
-	stream, err := startStream(ctx, stdout, stderr, stop)
-	if err != nil {
-		stop()
-		return nil, err
-	}
+	stream := startStream(ctx, stdout, stderr, stop)
 
 	go func() {
-		if err := session.Wait(); err != nil {
-			logger.Errorf("Remote command exited: %v", err)
+		if waitErr := session.Wait(); waitErr != nil {
+			logger.Errorf("Remote command exited: %v", waitErr)
 		}
 		stop()
 	}()
@@ -195,8 +193,10 @@ func sshClientConfig(target Target) (*ssh.ClientConfig, error) {
 	logger.Infof("%d SSH auth method(s) configured", len(auth))
 
 	return &ssh.ClientConfig{
-		User:            target.SSHUser,
-		Auth:            auth,
+		User: target.SSHUser,
+		Auth: auth,
+		// The LAN environment uses ephemeral servers with no stable host keys.
+		//nolint:gosec // G106: host key verification is intentionally skipped for LAN SSH.
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}, nil
 }
@@ -229,9 +229,9 @@ func resolveContainerID(client *ssh.Client, pattern string) (string, error) {
 	return findContainerByPattern(string(output), pattern)
 }
 
-func resolveContainerIDLocal(pattern string) (string, error) {
+func resolveContainerIDLocal(ctx context.Context, pattern string) (string, error) {
 	logger.Infof("Querying local docker ps for pattern %q", pattern)
-	out, err := exec.Command("docker", "ps", "--format", "{{.ID}} {{.Names}}").Output()
+	out, err := exec.CommandContext(ctx, "docker", "ps", "--format", "{{.ID}} {{.Names}}").Output()
 	if err != nil {
 		return "", fmt.Errorf("docker ps: %w", err)
 	}
@@ -287,9 +287,9 @@ func runCommand(ctx context.Context, cmd *exec.Cmd, cancel context.CancelFunc) (
 		return nil, fmt.Errorf("stderr pipe: %w", err)
 	}
 
-	if err := cmd.Start(); err != nil {
+	if startErr := cmd.Start(); startErr != nil {
 		cancel()
-		return nil, fmt.Errorf("start command: %w", err)
+		return nil, fmt.Errorf("start command: %w", startErr)
 	}
 
 	stop := func() {
@@ -297,11 +297,7 @@ func runCommand(ctx context.Context, cmd *exec.Cmd, cancel context.CancelFunc) (
 		_ = cmd.Wait()
 	}
 
-	stream, err := startStream(ctx, stdout, stderr, stop)
-	if err != nil {
-		stop()
-		return nil, err
-	}
+	stream := startStream(ctx, stdout, stderr, stop)
 
 	go func() {
 		_ = cmd.Wait()
@@ -311,17 +307,17 @@ func runCommand(ctx context.Context, cmd *exec.Cmd, cancel context.CancelFunc) (
 	return stream, nil
 }
 
-func startStream(ctx context.Context, stdout, stderr io.Reader, stop func()) (*Stream, error) {
+func startStream(ctx context.Context, stdout, stderr io.Reader, stop func()) *Stream {
 	lines := make(chan string)
 	errs := make(chan error)
-	var eg errgroup.Group
+	var errGroup errgroup.Group
 
-	eg.Go(func() error { return streamLines(ctx, stdout, lines) })
-	eg.Go(func() error { return streamErrors(ctx, stderr, errs) })
+	errGroup.Go(func() error { return streamLines(ctx, stdout, lines) })
+	errGroup.Go(func() error { return streamErrors(ctx, stderr, errs) })
 
 	go func() {
 		<-ctx.Done()
-		_ = eg.Wait()
+		_ = errGroup.Wait()
 		close(lines)
 		close(errs)
 	}()
@@ -330,7 +326,7 @@ func startStream(ctx context.Context, stdout, stderr io.Reader, stop func()) (*S
 		Lines:  lines,
 		Errors: errs,
 		Stop:   stop,
-	}, nil
+	}
 }
 
 func streamLines(ctx context.Context, r io.Reader, out chan<- string) error {
@@ -342,19 +338,22 @@ func streamLines(ctx context.Context, r io.Reader, out chan<- string) error {
 			return nil
 		}
 	}
-	return scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("read log lines: %w", err)
+	}
+	return nil
 }
 
 // normalizeText returns s as valid UTF-8. Lines that are not valid UTF-8 are
 // assumed to be windows-1251 (game servers often run with a legacy Russian
 // locale) and transcoded accordingly; otherwise the bytes are passed through.
-func normalizeText(s string) string {
-	if utf8.ValidString(s) {
-		return s
+func normalizeText(text string) string {
+	if utf8.ValidString(text) {
+		return text
 	}
-	decoded, err := charmap.Windows1251.NewDecoder().Bytes([]byte(s))
+	decoded, err := charmap.Windows1251.NewDecoder().Bytes([]byte(text))
 	if err != nil {
-		return s
+		return text
 	}
 	return string(decoded)
 }
@@ -370,5 +369,8 @@ func streamErrors(ctx context.Context, r io.Reader, out chan<- error) error {
 			return nil
 		}
 	}
-	return scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("read log errors: %w", err)
+	}
+	return nil
 }

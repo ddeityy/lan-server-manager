@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	gorcon "github.com/gorcon/rcon"
 
@@ -31,21 +32,45 @@ type ServerInfo struct {
 	Players      []Player
 }
 
-// Client wraps an RCON connection to a Source engine game rcon.
+// request is a single RCON command queued to the client goroutine.
+type request struct {
+	cmd  string
+	resp chan<- result
+}
+
+// result carries the response or error back from the client goroutine.
+type result struct {
+	resp string
+	err  error
+}
+
+// Client wraps a gorcon RCON connection behind a request channel so all TCP
+// traffic is serialized on one goroutine.
 type Client struct {
 	address  string
 	password string
 	conn     *gorcon.Conn
 	lastInfo ServerInfo
+
+	reqs chan request
+	done chan struct{}
+	wg   sync.WaitGroup
 }
 
-// NewClient creates a Client without connecting.
+const requestQueueSize = 8
+
+// NewClient creates a Client without connecting and starts the command queue.
 func NewClient(address, password string) *Client {
 	logger.Infof("Created RCON client for %s", address)
-	return &Client{
+	client := &Client{
 		address:  address,
 		password: password,
+		reqs:     make(chan request, requestQueueSize),
+		done:     make(chan struct{}),
 	}
+	client.wg.Add(1)
+	go client.loop()
+	return client
 }
 
 // Connect dials the RCON endpoint and stores the connection.
@@ -61,24 +86,61 @@ func (s *Client) Connect() error {
 	return nil
 }
 
-// Close releases the RCON connection.
+// Close releases the RCON connection and stops the command queue.
 func (s *Client) Close() error {
 	logger.Infof("Closing RCON connection to %s", s.address)
+	close(s.done)
+	s.wg.Wait()
 	if s.conn != nil {
 		err := s.conn.Close()
 		s.conn = nil
-		return err
+		if err != nil {
+			return fmt.Errorf("close rcon: %w", err)
+		}
 	}
 	return nil
 }
 
-// Kick removes a player from the server by their user ID.
-func (s *Client) Kick(userID int) error {
-	logger.Infof("Kicking player %d on %s", userID, s.address)
-	_, err := s.send(fmt.Sprintf("kickid %d", userID))
-	if err != nil {
-		logger.Errorf("Kick player %d on %s failed: %v", userID, s.address, err)
+func (s *Client) loop() {
+	defer s.wg.Done()
+	for {
+		select {
+		case req, ok := <-s.reqs:
+			if !ok {
+				return
+			}
+			s.processRequest(req)
+		case <-s.done:
+			s.drainAndExit()
+			return
+		}
 	}
+}
+
+func (s *Client) processRequest(req request) {
+	resp, err := s.send(req.cmd)
+	select {
+	case req.resp <- result{resp: resp, err: err}:
+	default:
+	}
+}
+
+func (s *Client) drainAndExit() {
+	for {
+		select {
+		case req, ok := <-s.reqs:
+			if !ok {
+				return
+			}
+			s.processRequest(req)
+		default:
+			return
+		}
+	}
+}
+
+func (s *Client) execute(cmd string) error {
+	_, err := s.ExecuteWithResponse(cmd)
 	return err
 }
 
@@ -93,7 +155,24 @@ func (s *Client) Execute(cmd string) error {
 // returned over RCON and not echoed to the console log.
 func (s *Client) ExecuteWithResponse(cmd string) (string, error) {
 	logger.Infof("Executing RCON command on %s: %s", s.address, cmd)
-	return s.send(cmd)
+	respC := make(chan result, 1)
+	select {
+	case s.reqs <- request{cmd: cmd, resp: respC}:
+	case <-s.done:
+		return "", fmt.Errorf("rcon client closed")
+	}
+	r := <-respC
+	return r.resp, r.err
+}
+
+// Kick removes a player from the server by their user ID.
+func (s *Client) Kick(userID int) error {
+	logger.Infof("Kicking player %d on %s", userID, s.address)
+	_, err := s.ExecuteWithResponse(fmt.Sprintf("kickid %d", userID))
+	if err != nil {
+		logger.Errorf("Kick player %d on %s failed: %v", userID, s.address, err)
+	}
+	return err
 }
 
 // ChangeLevel sends the Source changelevel command for the given map.
@@ -114,11 +193,6 @@ func (s *Client) ExecConfig(config string) error {
 	return s.execute("exec " + config)
 }
 
-func (s *Client) execute(cmd string) error {
-	_, err := s.send(cmd)
-	return err
-}
-
 // send executes a single RCON command, reconnecting once on failure.
 func (s *Client) send(cmd string) (string, error) {
 	if strings.TrimSpace(cmd) == "" {
@@ -133,12 +207,13 @@ func (s *Client) send(cmd string) (string, error) {
 	resp, err := s.conn.Execute(cmd)
 	if err != nil {
 		logger.Warnf("RCON command failed on %s, attempting reconnect: %v", s.address, err)
-		// Connection may have dropped; try once more with a fresh connection.
-		if err := s.Close(); err != nil {
-			logger.Warnf("RCON close on %s failed: %v", s.address, err)
+		// Connection may have dropped; close only the socket and reconnect.
+		if s.conn != nil {
+			_ = s.conn.Close()
+			s.conn = nil
 		}
-		if err := s.Connect(); err != nil {
-			return "", err
+		if connectErr := s.Connect(); connectErr != nil {
+			return "", connectErr
 		}
 		resp, err = s.conn.Execute(cmd)
 		if err != nil {
@@ -158,8 +233,7 @@ func (s *Client) Refresh() error {
 		}
 	}
 
-	// logger.Infof("Refreshing status on %s", s.address)
-	resp, err := s.send("status")
+	resp, err := s.ExecuteWithResponse("status")
 	if err != nil {
 		return err
 	}
@@ -171,7 +245,6 @@ func (s *Client) Refresh() error {
 	}
 
 	s.lastInfo = info
-	// logger.Infof("Status refreshed on %s: hostname=%q map=%q players=%d/%d", s.address, info.Hostname, info.Map, info.HumanPlayers, info.MaxPlayers)
 	return nil
 }
 
@@ -180,9 +253,27 @@ func (s *Client) Info() ServerInfo {
 	return s.lastInfo
 }
 
+// unquote removes matching surrounding quotes from s.
+func unquote(value string) string {
+	if len(value) >= 2 {
+		first, last := value[0], value[len(value)-1]
+		if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+			return value[1 : len(value)-1]
+		}
+	}
+	if len(value) >= 1 {
+		if value[0] == '"' || value[0] == '\'' {
+			return value[1:]
+		}
+		if value[len(value)-1] == '"' || value[len(value)-1] == '\'' {
+			return value[:len(value)-1]
+		}
+	}
+	return value
+}
+
 // ParseStatus extracts the fields we need from the Source engine status text.
 func ParseStatus(status string) (ServerInfo, error) {
-	// logger.Infof("Parsing status output (%d bytes)", len(status))
 	var info ServerInfo
 
 	lines := strings.Split(status, "\n")
@@ -200,17 +291,7 @@ func ParseStatus(status string) (ServerInfo, error) {
 		switch {
 		case strings.HasPrefix(line, "hostname"):
 			if _, after, ok := strings.Cut(line, ":"); ok {
-				s := strings.TrimSpace(after)
-				if len(s) >= 2 {
-					if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
-						s = s[1 : len(s)-1]
-					}
-				} else if len(s) >= 1 && (s[0] == '"' || s[0] == '\'') {
-					s = s[1:]
-				} else if len(s) >= 1 && (s[len(s)-1] == '"' || s[len(s)-1] == '\'') {
-					s = s[:len(s)-1]
-				}
-				info.Hostname = s
+				info.Hostname = unquote(strings.TrimSpace(after))
 			}
 
 		case strings.HasPrefix(line, "map"):
@@ -235,23 +316,22 @@ func ParseStatus(status string) (ServerInfo, error) {
 
 	for _, line := range lines {
 		line = strings.TrimRight(line, "\r")
-		if m := rePlayer.FindStringSubmatch(line); m != nil {
-			uniqueID := m[3]
-			id, _ := strconv.Atoi(m[1])
-			ping, _ := strconv.Atoi(m[5])
-			loss, _ := strconv.Atoi(m[6])
+		if matches := rePlayer.FindStringSubmatch(line); matches != nil {
+			uniqueID := matches[3]
+			id, _ := strconv.Atoi(matches[1])
+			ping, _ := strconv.Atoi(matches[5])
+			loss, _ := strconv.Atoi(matches[6])
 			info.Players = append(info.Players, Player{
 				UserID:    id,
-				Name:      m[2],
+				Name:      matches[2],
 				UniqueID:  uniqueID,
-				Connected: m[4],
+				Connected: matches[4],
 				Ping:      ping,
 				Loss:      loss,
-				State:     m[7],
+				State:     matches[7],
 			})
 		}
 	}
 
-	// logger.Infof("Parsed status: hostname=%q map=%q players=%d/%d human_players=%d", info.Hostname, info.Map, len(info.Players), info.MaxPlayers, info.HumanPlayers)
 	return info, nil
 }

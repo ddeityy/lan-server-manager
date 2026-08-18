@@ -25,93 +25,95 @@ const (
 )
 
 func newConnection(onConnect, onDisconnect func()) *Connection {
-	c := &Connection{}
+	connection := &Connection{}
 
-	c.addressEntry = widget.NewEntry()
-	c.addressEntry.SetText(defaultAddress)
+	connection.addressEntry = widget.NewEntry()
+	connection.addressEntry.SetText(defaultAddress)
 
-	c.passwordEntry = widget.NewPasswordEntry()
-	c.passwordEntry.SetText(defaultPassword)
+	connection.passwordEntry = widget.NewPasswordEntry()
+	connection.passwordEntry.SetText(defaultPassword)
 
-	c.sshHostEntry = widget.NewEntry()
-	c.sshHostEntry.SetPlaceHolder("ssh host (optional)")
+	connection.sshHostEntry = widget.NewEntry()
+	connection.sshHostEntry.SetPlaceHolder("ssh host (optional)")
 
-	c.sshPasswordEntry = widget.NewPasswordEntry()
-	c.sshPasswordEntry.SetPlaceHolder("ssh password (optional)")
+	connection.sshPasswordEntry = widget.NewPasswordEntry()
+	connection.sshPasswordEntry.SetPlaceHolder("ssh password (optional)")
 
-	c.containerNameEntry = widget.NewEntry()
-	c.containerNameEntry.SetPlaceHolder("container name or pattern")
+	connection.containerNameEntry = widget.NewEntry()
+	connection.containerNameEntry.SetPlaceHolder("container name or pattern")
 
-	c.connectButton = widget.NewButton("Connect", onConnect)
-	c.disconnectButton = widget.NewButton("Disconnect", onDisconnect)
-	c.disconnectButton.Disable()
+	connection.connectButton = widget.NewButton("Connect", onConnect)
+	connection.disconnectButton = widget.NewButton("Disconnect", onDisconnect)
+	connection.disconnectButton.Disable()
 
-	c.statusLabel = widget.NewLabel("")
+	connection.statusLabel = widget.NewLabel("")
 
-	return c
+	return connection
 }
 
 // View returns the connection form, buttons, and status as a single canvas object.
-func (c *Connection) View() fyne.CanvasObject {
+func (connection *Connection) View() fyne.CanvasObject {
 	return container.NewVBox(
 		widget.NewForm(
-			widget.NewFormItem("Address       ", c.addressEntry),
-			widget.NewFormItem("RCON Password", c.passwordEntry),
-			widget.NewFormItem("Container     ", c.containerNameEntry),
-			widget.NewFormItem("SSH Host      ", c.sshHostEntry),
-			widget.NewFormItem("SSH Password  ", c.sshPasswordEntry),
+			widget.NewFormItem("Address       ", connection.addressEntry),
+			widget.NewFormItem("RCON Password", connection.passwordEntry),
+			widget.NewFormItem("Container     ", connection.containerNameEntry),
+			widget.NewFormItem("SSH Host      ", connection.sshHostEntry),
+			widget.NewFormItem("SSH Password  ", connection.sshPasswordEntry),
 		),
-		container.NewGridWithColumns(2, c.connectButton, c.disconnectButton),
-		c.statusLabel,
+		container.NewGridWithColumns(2, connection.connectButton, connection.disconnectButton),
+		connection.statusLabel,
 	)
 }
 
 // Address returns the configured RCON address.
-func (c *Connection) Address() string { return c.addressEntry.Text }
+func (connection *Connection) Address() string { return connection.addressEntry.Text }
 
 // Password returns the configured RCON password.
-func (c *Connection) Password() string { return c.passwordEntry.Text }
+func (connection *Connection) Password() string { return connection.passwordEntry.Text }
 
 // SetAddress sets the RCON address field.
-func (c *Connection) SetAddress(addr string) { c.addressEntry.SetText(addr) }
+func (connection *Connection) SetAddress(addr string) { connection.addressEntry.SetText(addr) }
 
 // SetPassword sets the RCON password field.
-func (c *Connection) SetPassword(pw string) { c.passwordEntry.SetText(pw) }
+func (connection *Connection) SetPassword(pw string) { connection.passwordEntry.SetText(pw) }
 
 // SSHHost returns the configured SSH host for log tailing.
-func (c *Connection) SSHHost() string { return c.sshHostEntry.Text }
+func (connection *Connection) SSHHost() string { return connection.sshHostEntry.Text }
 
 // SSHPassword returns the configured SSH password for log tailing.
-func (c *Connection) SSHPassword() string { return c.sshPasswordEntry.Text }
+func (connection *Connection) SSHPassword() string { return connection.sshPasswordEntry.Text }
 
 // ContainerName returns the configured container name or pattern for log tailing.
-func (c *Connection) ContainerName() string { return c.containerNameEntry.Text }
+func (connection *Connection) ContainerName() string { return connection.containerNameEntry.Text }
 
 // SetSSHHost sets the SSH host field.
-func (c *Connection) SetSSHHost(host string) { c.sshHostEntry.SetText(host) }
+func (connection *Connection) SetSSHHost(host string) { connection.sshHostEntry.SetText(host) }
 
 // SetSSHPassword sets the SSH password field.
-func (c *Connection) SetSSHPassword(pw string) { c.sshPasswordEntry.SetText(pw) }
+func (connection *Connection) SetSSHPassword(pw string) { connection.sshPasswordEntry.SetText(pw) }
 
 // SetContainerName sets the container name or pattern field.
-func (c *Connection) SetContainerName(name string) { c.containerNameEntry.SetText(name) }
+func (connection *Connection) SetContainerName(name string) {
+	connection.containerNameEntry.SetText(name)
+}
 
 // SetStatus updates the status label at the bottom of the connection form.
-func (c *Connection) SetStatus(text string) { c.statusLabel.SetText(text) }
+func (connection *Connection) SetStatus(text string) { connection.statusLabel.SetText(text) }
 
 // SetConnecting shows a connecting state and disables both buttons.
-func (c *Connection) SetConnecting() {
-	c.connectButton.Disable()
-	c.disconnectButton.Disable()
-	c.SetStatus("Connecting...")
+func (connection *Connection) SetConnecting() {
+	connection.connectButton.Disable()
+	connection.disconnectButton.Disable()
+	connection.SetStatus("Connecting...")
 }
 
 // SetConnected enables or disables the connect/disconnect buttons and updates
 // the status text. When connected the status reads "Connected".
-func (c *Connection) SetConnected(connected bool) {
-	setButtonsEnabled(!connected, c.connectButton)
-	setButtonsEnabled(connected, c.disconnectButton)
+func (connection *Connection) SetConnected(connected bool) {
+	setButtonsEnabled(!connected, connection.connectButton)
+	setButtonsEnabled(connected, connection.disconnectButton)
 	if connected {
-		c.SetStatus("Connected")
+		connection.SetStatus("Connected")
 	}
 }

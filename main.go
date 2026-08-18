@@ -9,13 +9,18 @@ import (
 	"lan-server-manager/ui"
 )
 
+const (
+	defaultWindowWidth  = 1920
+	defaultWindowHeight = 1080
+)
+
 func main() {
 	logger.Infof("Starting LAN TF2 Server Manager")
 
-	a := app.NewWithID("com.lan.server-manager")
-	w := a.NewWindow("LAN TF2 Server Manager")
-	w.Resize(fyne.Size{Width: 1920, Height: 1080})
-	w.CenterOnScreen()
+	application := app.NewWithID("com.lan.server-manager")
+	win := application.NewWindow("LAN TF2 Server Manager")
+	win.Resize(fyne.Size{Width: defaultWindowWidth, Height: defaultWindowHeight})
+	win.CenterOnScreen()
 
 	cfg, err := config.Load("config/config.toml")
 	if err != nil {
@@ -25,8 +30,8 @@ func main() {
 		logger.Infof("Loaded config from config/config.toml")
 	}
 
-	manager := ui.NewManager(w, cfg)
-	w.SetContent(manager.Content())
+	manager := ui.NewManager(win, cfg)
+	win.SetContent(manager.Content())
 	logger.Infof("Showing main window")
-	w.ShowAndRun()
+	win.ShowAndRun()
 }
