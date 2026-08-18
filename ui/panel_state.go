@@ -5,7 +5,7 @@ import (
 
 	"lan-server-manager/game/logparse"
 	"lan-server-manager/game/scoreboard"
-	"lan-server-manager/internal/logger"
+	"lan-server-manager/logger"
 	"lan-server-manager/rcon"
 )
 

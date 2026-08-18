@@ -26,10 +26,12 @@ To override the defaults, create or edit `config/config.toml`:
 maps = [
     "cp_badlands",
     "cp_process_f12",
+    "your_custom_map"
 ]
 
 configs = [
     "etf2l_6v6_5cp",
+    "your_custom_config"
 ]
 
 [[servers]]

@@ -7,7 +7,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"lan-server-manager/internal/logger"
+	"lan-server-manager/logger"
 )
 
 //go:embed config.toml

@@ -18,7 +18,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/text/encoding/charmap"
 
-	"lan-server-manager/internal/logger"
+	"lan-server-manager/logger"
 )
 
 // Target describes where a container's logs live.

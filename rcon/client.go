@@ -8,7 +8,7 @@ import (
 
 	gorcon "github.com/gorcon/rcon"
 
-	"lan-server-manager/internal/logger"
+	"lan-server-manager/logger"
 )
 
 // Player holds the fields we care about from the status player table.

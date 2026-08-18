@@ -272,7 +272,7 @@ func (t *teamTable) setScore(score int) {
 	if t.titleLabel == nil {
 		return
 	}
-	t.titleLabel.Text = fmt.Sprintf("%s — %d", t.name, score)
+	t.titleLabel.Text = fmt.Sprintf("%s : %d", t.name, score)
 	t.titleLabel.Refresh()
 }
 

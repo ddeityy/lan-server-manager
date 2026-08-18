@@ -5,7 +5,7 @@ import (
 	"fyne.io/fyne/v2/app"
 
 	"lan-server-manager/config"
-	"lan-server-manager/internal/logger"
+	"lan-server-manager/logger"
 	"lan-server-manager/ui"
 )
 
